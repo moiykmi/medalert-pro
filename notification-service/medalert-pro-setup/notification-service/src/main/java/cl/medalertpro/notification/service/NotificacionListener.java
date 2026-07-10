@@ -1,0 +1,63 @@
+package cl.medalertpro.notification.service;
+
+import cl.medalertpro.notification.dto.CancelacionEventoMessage;
+import cl.medalertpro.notification.repository.NotificacionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.stereotype.Service;
+
+/**
+ * HU03-05 + HU06: consume "cancelaciones.eventos" y envía la notificación inicial
+ * por el canal_preferido de cada paciente (no los 3 canales a la vez). El
+ * escalamiento a los siguientes canales si no hay confirmación lo maneja
+ * EscalacionScheduler (HU06-08).
+ */
+@Service
+public class NotificacionListener {
+
+    private static final Logger log = LoggerFactory.getLogger(NotificacionListener.class);
+
+    private final NotificacionDispatchService dispatchService;
+    private final NotificacionRepository notificacionRepository;
+
+    public NotificacionListener(NotificacionDispatchService dispatchService,
+                                 NotificacionRepository notificacionRepository) {
+        this.dispatchService = dispatchService;
+        this.notificacionRepository = notificacionRepository;
+    }
+
+    @RabbitListener(queues = "${medalert.rabbitmq.queue}")
+    public void procesarEventoCancelacion(CancelacionEventoMessage evento) {
+        log.info("Procesando evento {} — {} pacientes afectados",
+                evento.getEventoId(), evento.getPacientesAfectados().size());
+
+        for (CancelacionEventoMessage.PacienteAfectado paciente : evento.getPacientesAfectados()) {
+
+            // Idempotencia: si RabbitMQ reentrega este mensaje (ej. tras un reinicio
+            // del microservicio con un mensaje sin confirmar), evita duplicar el
+            // envío inicial para este paciente en este evento.
+            if (notificacionRepository.existsByEventoIdAndPacienteId(evento.getEventoId(), paciente.getPacienteId())) {
+                log.warn("Evento {} paciente {} ya tiene una notificación registrada — se ignora reentrega duplicada",
+                        evento.getEventoId(), paciente.getPacienteId());
+                continue;
+            }
+
+            String texto = MensajeBuilder.construir(paciente.getNombre(), evento.getMotivo());
+            String canalInicial = normalizarCanal(paciente.getCanalPreferido());
+
+            dispatchService.enviarYRegistrar(
+                    evento.getEventoId(), paciente.getPacienteId(), paciente.getCitaId(),
+                    canalInicial, paciente.getTelefono(), paciente.getEmail(), texto, (short) 1);
+        }
+    }
+
+    private String normalizarCanal(String canalPreferido) {
+        if (canalPreferido == null) return "SMS";
+        return switch (canalPreferido.toUpperCase()) {
+            case "WHATSAPP" -> "WHATSAPP";
+            case "EMAIL" -> "EMAIL";
+            default -> "SMS";
+        };
+    }
+}
