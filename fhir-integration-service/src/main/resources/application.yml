@@ -6,7 +6,7 @@ spring:
     name: fhir-integration-service
 
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/medalert
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:medalert}
     username: ${POSTGRES_USER:medalert}
     password: ${POSTGRES_PASSWORD:medalert_dev_pw}
 
@@ -25,7 +25,7 @@ spring:
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
-    port: 5672
+    port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_DEFAULT_USER:medalert}
     password: ${RABBITMQ_DEFAULT_PASS:medalert_dev_pw}
 
