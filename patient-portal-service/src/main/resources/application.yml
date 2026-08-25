@@ -38,6 +38,8 @@ spring:
             enable: true
 
 medalert:
+  cors:
+    allowed-origins: ${ALLOWED_ORIGIN:http://localhost:*,http://127.0.0.1:*}
   mail:
     from: ${MAIL_FROM:notificaciones@medalertpro.test}
   twilio:
