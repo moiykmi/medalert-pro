@@ -1,0 +1,54 @@
+server:
+  port: 8083   # 8080=mock FHIR, 8081=fhir-integration, 8082=notification, 8083=patient-portal
+
+spring:
+  application:
+    name: patient-portal-service
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/medalert
+    username: ${POSTGRES_USER:medalert}
+    password: ${POSTGRES_PASSWORD:medalert_dev_pw}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  mail:
+    host: ${MAIL_HOST:sandbox.smtp.mailtrap.io}
+    port: ${MAIL_PORT:2525}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+medalert:
+  mail:
+    from: ${MAIL_FROM:notificaciones@medalertpro.test}
+  twilio:
+    account-sid: ${TWILIO_ACCOUNT_SID}
+    auth-token: ${TWILIO_AUTH_TOKEN}
+    sms-from-number: ${TWILIO_SMS_FROM_NUMBER}
+  otp:
+    ttl-minutos: 5
+  sesion:
+    ttl-minutos: 30
+
+logging:
+  level:
+    cl.medalertpro: DEBUG

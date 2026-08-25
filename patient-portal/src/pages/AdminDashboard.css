@@ -1,0 +1,142 @@
+.admin-dashboard {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.admin-dashboard__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.admin-dashboard__eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  margin-bottom: 8px;
+}
+
+.admin-dashboard__meta {
+  margin-top: 8px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.admin-dashboard__kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kpi__value {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.kpi__value--ok {
+  color: var(--color-success);
+}
+
+.kpi__value--warn {
+  color: var(--color-danger);
+}
+
+.admin-dashboard__charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-wrap {
+  width: 100%;
+  height: 260px;
+}
+
+.admin-dashboard__section-title {
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+.admin-dashboard__event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.event-card__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.event-card__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.event-card__date,
+.event-card__meta {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.admin-dashboard__login-card {
+  max-width: 520px;
+}
+
+.admin-dashboard__login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-dashboard__login-form input {
+  min-height: 46px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 16px;
+}
+
+.admin-dashboard__error-card {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-dashboard__error {
+  color: var(--color-danger);
+  font-size: 14px;
+}
+
+.admin-dashboard__vacio,
+.admin-dashboard__vacio-card {
+  color: var(--color-text-muted);
+}

@@ -23,7 +23,7 @@ interface AvisoAgrupado {
   citaId: number | null;
   canalesIntentados: string[];
   ultimaNotificacion: Notificacion;
-  estado: 'confirmado' | 'pendiente' | 'reintentando';
+  estado: 'confirmado' | 'pendiente' | 'reintentando' | 'sin_respuesta';
 }
 
 function agruparPorEvento(notificaciones: Notificacion[]): AvisoAgrupado[] {
@@ -35,29 +35,35 @@ function agruparPorEvento(notificaciones: Notificacion[]): AvisoAgrupado[] {
   }
 
   return Array.from(grupos.entries())
-    .map(([eventoId, items]) => {
-      const ordenados = [...items].sort((a, b) => a.intentoNumero - b.intentoNumero);
-      const ultima = ordenados[ordenados.length - 1];
-      const confirmado = items.some((n) => n.estadoEnvio === 'CONFIRMADO');
+      .map(([eventoId, items]) => {
+        const ordenados = [...items].sort((a, b) => a.intentoNumero - b.intentoNumero);
+        const ultima = ordenados[ordenados.length - 1];
+        const confirmado = items.some((n) => n.estadoEnvio === 'CONFIRMADO');
 
-      // Si el último intento falló al enviarse, el sistema todavía está
-      // reintentando por otro canal (escalamiento) — no tiene sentido pedirle
-      // al paciente que confirme un mensaje que nunca le llegó.
-      const estado: AvisoAgrupado['estado'] = confirmado
-        ? 'confirmado'
-        : ultima.estadoEnvio === 'FALLIDO'
-          ? 'reintentando'
-          : 'pendiente';
+        // Si el último intento falló al enviarse, el sistema todavía está
+        // reintentando por otro canal (escalamiento) — no tiene sentido pedirle
+        // al paciente que confirme un mensaje que nunca le llegó.
+        // Si agotó los 3 canales sin confirmación (SIN_RESPUESTA), igual se le
+        // permite confirmar por si el mensaje sí llegó pero nunca hizo click —
+        // solo cambia la etiqueta para que quede claro que el sistema ya dejó
+        // de reintentar automáticamente.
+        const estado: AvisoAgrupado['estado'] = confirmado
+            ? 'confirmado'
+            : ultima.estadoEnvio === 'FALLIDO'
+                ? 'reintentando'
+                : ultima.estadoEnvio === 'SIN_RESPUESTA'
+                    ? 'sin_respuesta'
+                    : 'pendiente';
 
-      return {
-        eventoId,
-        citaId: ultima.citaId,
-        canalesIntentados: ordenados.map((n) => n.canal),
-        ultimaNotificacion: ultima,
-        estado,
-      };
-    })
-    .sort((a, b) => b.eventoId - a.eventoId);
+        return {
+          eventoId,
+          citaId: ultima.citaId,
+          canalesIntentados: ordenados.map((n) => n.canal),
+          ultimaNotificacion: ultima,
+          estado,
+        };
+      })
+      .sort((a, b) => b.eventoId - a.eventoId);
 }
 
 function formatearFecha(iso: string | null): string {
@@ -122,117 +128,118 @@ export function Portal({ sesion, onSalir }: PortalProps) {
   }
 
   return (
-    <div className="portal">
-      <header className="portal__header">
-        <div>
-          <p className="portal__eyebrow">Hola,</p>
-          <h1>{sesion.nombre}</h1>
-        </div>
-        <Button variant="ghost" onClick={onSalir}>
-          Cerrar sesión
-        </Button>
-      </header>
-
-      {error && (
-        <Card className="portal__error" role="alert">
-          <p>{error}</p>
-          <Button variant="secondary" onClick={cargarDatos}>
-            Reintentar
+      <div className="portal">
+        <header className="portal__header">
+          <div>
+            <p className="portal__eyebrow">Hola,</p>
+            <h1>{sesion.nombre}</h1>
+          </div>
+          <Button variant="ghost" onClick={onSalir}>
+            Cerrar sesión
           </Button>
-        </Card>
-      )}
+        </header>
 
-      {mensajeEstado && (
-        <p className="portal__aviso-global" role="status">
-          {mensajeEstado}
-        </p>
-      )}
-
-      <section aria-labelledby="avisos-titulo">
-        <h2 id="avisos-titulo" className="portal__seccion-titulo">
-          Avisos de cancelación
-        </h2>
-
-        {cargando && <p className="portal__vacio">Cargando tus avisos…</p>}
-
-        {!cargando && avisos.length === 0 && (
-          <Card className="portal__vacio-card">
-            <p>No tienes avisos de cancelación por ahora.</p>
-          </Card>
-        )}
-
-        <div className="portal__lista">
-          {avisos.map((aviso) => (
-            <Card key={aviso.eventoId} className="aviso">
-              <div className="aviso__encabezado">
-                <div>
-                  <p className="aviso__fecha">
-                    {aviso.estado === 'reintentando'
-                      ? 'Estamos intentando contactarte por otro medio'
-                      : `Enviado el ${formatearFecha(aviso.ultimaNotificacion.enviadoEn)}`}
-                  </p>
-                  <p className="aviso__texto">
-                    Tu cita fue cancelada. Te contactamos por los siguientes canales:
-                  </p>
-                </div>
-                <span className={`badge badge--estado-${aviso.estado}`}>
-                  {aviso.estado === 'confirmado' && 'Confirmado'}
-                  {aviso.estado === 'pendiente' && 'Pendiente'}
-                  {aviso.estado === 'reintentando' && 'Reintentando'}
-                </span>
-              </div>
-
-              <ChannelTrail
-                canalesIntentados={aviso.canalesIntentados}
-                canalActivo={aviso.ultimaNotificacion.canal}
-              />
-
-              {aviso.estado === 'pendiente' && (
-                <Button
-                  onClick={() => confirmar(aviso.ultimaNotificacion.id)}
-                  disabled={confirmandoId === aviso.ultimaNotificacion.id}
-                >
-                  {confirmandoId === aviso.ultimaNotificacion.id
-                    ? 'Confirmando…'
-                    : 'Confirmar que recibí este aviso'}
-                </Button>
-              )}
-
-              {aviso.estado === 'reintentando' && (
-                <p className="aviso__nota">
-                  No pudimos contactarte por {aviso.ultimaNotificacion.canal === 'SMS' ? 'SMS' : aviso.ultimaNotificacion.canal === 'WHATSAPP' ? 'WhatsApp' : 'correo'} — el sistema intentará por otro canal en los próximos minutos.
-                </p>
-              )}
+        {error && (
+            <Card className="portal__error" role="alert">
+              <p>{error}</p>
+              <Button variant="secondary" onClick={cargarDatos}>
+                Reintentar
+              </Button>
             </Card>
-          ))}
-        </div>
-      </section>
-
-      <section aria-labelledby="citas-titulo">
-        <h2 id="citas-titulo" className="portal__seccion-titulo">
-          Mis citas
-        </h2>
-
-        {!cargando && citas.length === 0 && (
-          <Card className="portal__vacio-card">
-            <p>No tienes citas registradas.</p>
-          </Card>
         )}
 
-        <div className="portal__lista">
-          {citas.map((cita) => (
-            <Card key={cita.id} className="cita">
-              <div>
-                <p className="cita__fecha">{formatearFecha(cita.fechaHora)}</p>
-                <p className="cita__meta">Cita N.º {cita.id}</p>
-              </div>
-              <span className={`badge badge--${cita.estado.toLowerCase()}`}>
+        {mensajeEstado && (
+            <p className="portal__aviso-global" role="status">
+              {mensajeEstado}
+            </p>
+        )}
+
+        <section aria-labelledby="avisos-titulo">
+          <h2 id="avisos-titulo" className="portal__seccion-titulo">
+            Avisos de cancelación
+          </h2>
+
+          {cargando && <p className="portal__vacio">Cargando tus avisos…</p>}
+
+          {!cargando && avisos.length === 0 && (
+              <Card className="portal__vacio-card">
+                <p>No tienes avisos de cancelación por ahora.</p>
+              </Card>
+          )}
+
+          <div className="portal__lista">
+            {avisos.map((aviso) => (
+                <Card key={aviso.eventoId} className="aviso">
+                  <div className="aviso__encabezado">
+                    <div>
+                      <p className="aviso__fecha">
+                        {aviso.estado === 'reintentando'
+                            ? 'Estamos intentando contactarte por otro medio'
+                            : `Enviado el ${formatearFecha(aviso.ultimaNotificacion.enviadoEn)}`}
+                      </p>
+                      <p className="aviso__texto">
+                        Tu cita fue cancelada. Te contactamos por los siguientes canales:
+                      </p>
+                    </div>
+                    <span className={`badge badge--estado-${aviso.estado}`}>
+                  {aviso.estado === 'confirmado' && 'Confirmado'}
+                      {aviso.estado === 'pendiente' && 'Pendiente'}
+                      {aviso.estado === 'reintentando' && 'Reintentando'}
+                      {aviso.estado === 'sin_respuesta' && 'Sin confirmar'}
+                </span>
+                  </div>
+
+                  <ChannelTrail
+                      canalesIntentados={aviso.canalesIntentados}
+                      canalActivo={aviso.ultimaNotificacion.canal}
+                  />
+
+                  {(aviso.estado === 'pendiente' || aviso.estado === 'sin_respuesta') && (
+                      <Button
+                          onClick={() => confirmar(aviso.ultimaNotificacion.id)}
+                          disabled={confirmandoId === aviso.ultimaNotificacion.id}
+                      >
+                        {confirmandoId === aviso.ultimaNotificacion.id
+                            ? 'Confirmando…'
+                            : 'Confirmar que recibí este aviso'}
+                      </Button>
+                  )}
+
+                  {aviso.estado === 'reintentando' && (
+                      <p className="aviso__nota">
+                        No pudimos contactarte por {aviso.ultimaNotificacion.canal === 'SMS' ? 'SMS' : aviso.ultimaNotificacion.canal === 'WHATSAPP' ? 'WhatsApp' : 'correo'} — el sistema intentará por otro canal en los próximos minutos.
+                      </p>
+                  )}
+                </Card>
+            ))}
+          </div>
+        </section>
+
+        <section aria-labelledby="citas-titulo">
+          <h2 id="citas-titulo" className="portal__seccion-titulo">
+            Mis citas
+          </h2>
+
+          {!cargando && citas.length === 0 && (
+              <Card className="portal__vacio-card">
+                <p>No tienes citas registradas.</p>
+              </Card>
+          )}
+
+          <div className="portal__lista">
+            {citas.map((cita) => (
+                <Card key={cita.id} className="cita">
+                  <div>
+                    <p className="cita__fecha">{formatearFecha(cita.fechaHora)}</p>
+                    <p className="cita__meta">Cita N.º {cita.id}</p>
+                  </div>
+                  <span className={`badge badge--${cita.estado.toLowerCase()}`}>
                 {ESTADO_CITA_LABEL[cita.estado] ?? cita.estado}
               </span>
-            </Card>
-          ))}
-        </div>
-      </section>
-    </div>
+                </Card>
+            ))}
+          </div>
+        </section>
+      </div>
   );
 }

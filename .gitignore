@@ -1,0 +1,73 @@
+# ============================
+# Variables de entorno / s
+ecretos
+# ============================
+.env
+.env.local
+*.env
+!.env.example
+
+# ============================
+# IntelliJ IDEA
+# ============================
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# ============================
+# Gradle (fhir-integration-service, notification-service, patient-portal-service)
+# ============================
+.gradle/
+**/build/
+!src/**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# ============================
+# Maven (por si algún módulo vuelve a usarlo)
+# ============================
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+
+# ============================
+# Node / React (patient-portal, admin-dashboard)
+# ============================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# ============================
+# Logs
+# ============================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================
+# Sistema operativo
+# ============================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================
+# Docker
+# ============================
+# (los volúmenes se gestionan aparte, no como archivos en el repo)
+
+# ============================
+# Otros
+# ============================
+*.class
+*.jar
+!**/gradle-wrapper.jar
+hs_err_pid*.log

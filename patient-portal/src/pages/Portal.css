@@ -133,6 +133,11 @@
   color: var(--color-danger);
 }
 
+.badge--estado-sin_respuesta {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+}
+
 .badge--atendida {
   background: var(--color-success-tint);
   color: var(--color-success);

@@ -1,0 +1,68 @@
+server:
+  port: 8082   # 8080 = mock FHIR, 8081 = fhir-integration-service
+
+spring:
+  application:
+    name: notification-service
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/medalert
+    username: ${POSTGRES_USER:medalert}
+    password: ${POSTGRES_PASSWORD:medalert_dev_pw}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: 5672
+    username: ${RABBITMQ_DEFAULT_USER:medalert}
+    password: ${RABBITMQ_DEFAULT_PASS:medalert_dev_pw}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  mail:
+    host: ${MAIL_HOST:sandbox.smtp.mailtrap.io}
+    port: ${MAIL_PORT:2525}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+medalert:
+  rabbitmq:
+    exchange: medalert.eventos
+    routing-key: cancelacion.registrada
+    queue: cancelaciones.eventos
+  mail:
+    from: ${MAIL_FROM:notificaciones@medalertpro.test}
+  twilio:
+    account-sid: ${TWILIO_ACCOUNT_SID}
+    auth-token: ${TWILIO_AUTH_TOKEN}
+    sms-from-number: ${TWILIO_SMS_FROM_NUMBER}
+    whatsapp-from-number: ${TWILIO_WHATSAPP_FROM_NUMBER:whatsapp:+14155238886}
+  escalacion:
+    # En producción: 60 (minutos). Para pruebas de desarrollo, bájalo a algo
+    # como 1 minuto vía variable de entorno ESCALACION_MINUTOS_ESPERA, si no
+    # quieres esperar una hora para ver la escalación en acción.
+    minutos-espera: ${ESCALACION_MINUTOS_ESPERA:60}
+  admin:
+    token: ${MEDALERT_ADMIN_TOKEN:medalert-admin-dev-token}
+
+logging:
+  level:
+    cl.medalertpro: DEBUG

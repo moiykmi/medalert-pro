@@ -1,0 +1,42 @@
+.trail {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.trail__step {
+  display: flex;
+  align-items: center;
+}
+
+.trail__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-border);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.trail__dot--intentado {
+  background: var(--color-primary);
+}
+
+.trail__dot--activo {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-tint);
+}
+
+.trail__label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 8px 0 6px;
+  white-space: nowrap;
+}
+
+.trail__connector {
+  width: 20px;
+  height: 2px;
+  background: var(--color-border);
+  display: inline-block;
+}

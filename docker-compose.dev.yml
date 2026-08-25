@@ -1,0 +1,72 @@
+version: "3.9"
+
+# MedAlert Pro — Entorno de desarrollo local
+# Levantar con: docker compose -f docker-compose.dev.yml up -d
+# Apagar con:   docker compose -f docker-compose.dev.yml down
+# Apagar y borrar datos: docker compose -f docker-compose.dev.yml down -v
+
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: medalert-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medalert
+      POSTGRES_USER: medalert
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medalert_dev_pw}
+    ports:
+      - "5432:5432"
+    volumes:
+      - medalert_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medalert -d medalert"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: medalert-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: medalert
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-medalert_dev_pw}
+    ports:
+      - "5672:5672"   # AMQP (lo usan tus microservicios Spring Boot)
+      - "15672:15672" # Consola web de administración -> http://localhost:15672
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  hapi-fhir:
+    image: hapiproject/hapi:v7.2.0
+    container_name: medalert-hapi-fhir
+    restart: unless-stopped
+    environment:
+      # Servidor mock FHIR R4 con base H2 embebida — no requiere Postgres propio.
+      # Suficiente para simular RAS durante el desarrollo (HU01-HU02).
+      hapi.fhir.default_encoding: json
+      hapi.fhir.fhir_version: R4
+      hapi.fhir.narrative_enabled: "false"
+      hapi.fhir.validation.requests_enabled: "false"
+    ports:
+      - "8080:8080"
+    # Prueba de vida: GET http://localhost:8080/fhir/metadata debe devolver el CapabilityStatement
+
+  redis:
+    image: redis:7
+    container_name: medalert-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  medalert_postgres_data:

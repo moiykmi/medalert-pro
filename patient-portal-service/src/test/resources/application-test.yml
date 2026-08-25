@@ -1,0 +1,10 @@
+medalert:
+  twilio:
+    account-sid: ACtest00000000000000000000000000
+    auth-token: test-auth-token-0000000000000000
+    sms-from-number: "+10000000000"
+
+spring:
+  mail:
+    username: test@example.com
+    password: test-password

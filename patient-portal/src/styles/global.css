@@ -1,0 +1,89 @@
+:root {
+  /* Color: deep teal (trust/clinical calm) + warm amber accent (warmth, visibility for CTAs).
+     Chosen instead of generic SaaS blue or the common AI-cliché terracotta/near-black —
+     teal reads as clinical/civic without being cold, amber gives just one warm accent. */
+  --color-bg: #F7F6F1;
+  --color-surface: #FFFFFF;
+  --color-primary: #0B5E64;
+  --color-primary-dark: #063E42;
+  --color-primary-tint: #E3EEEE;
+  --color-accent: #D98E2B;
+  --color-accent-tint: #FBF0DD;
+  --color-text: #1B211F;
+  --color-text-muted: #5C665F;
+  --color-border: #E2E0D6;
+  --color-success: #2F7A4D;
+  --color-success-tint: #E7F3EB;
+  --color-danger: #AE3B34;
+  --color-danger-tint: #FBEAE8;
+  --color-focus: #0B5E64;
+
+  --font-display: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --shadow-card: 0 1px 2px rgba(27, 33, 31, 0.06), 0 4px 16px rgba(27, 33, 31, 0.05);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 0;
+  color: var(--color-primary-dark);
+}
+
+p {
+  margin: 0;
+}
+
+button, input {
+  font-family: inherit;
+}
+
+/* Foco de teclado siempre visible — requisito WCAG 2.1 AA */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Respeta la preferencia de reducir movimiento del sistema operativo */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

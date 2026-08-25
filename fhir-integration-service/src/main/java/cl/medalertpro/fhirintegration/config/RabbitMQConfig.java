@@ -1,5 +1,8 @@
 package cl.medalertpro.fhirintegration.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
@@ -45,6 +48,11 @@ public class RabbitMQConfig {
     @Bean
     public MessageConverter jsonMessageConverter() {
         // Serializa/deserializa los mensajes como JSON en vez de Java serializado por defecto
-        return new Jackson2JsonMessageConverter();
+        // Se registra JavaTimeModule para que LocalDateTime se escriba como texto ISO-8601
+        // (ej. "2026-08-01T09:00:00") en vez de un array de números.
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return new Jackson2JsonMessageConverter(objectMapper);
     }
 }
