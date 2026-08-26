@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError } from '../api/client';
+import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Paciente, Profesional } from '../api/client';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { TextField } from '../components/TextField';
@@ -21,6 +21,10 @@ import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
 const POLLING_MS = 20_000;
+
+function hoyISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 type EstadoCanal = 'confirmado' | 'pendiente' | 'reintentando' | 'sin_respuesta';
 const ESTADOS: EstadoCanal[] = ['confirmado', 'pendiente', 'reintentando', 'sin_respuesta'];
@@ -62,12 +66,18 @@ export function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   const [profesionalId, setProfesionalId] = useState('');
-  const [fechaCancelacion, setFechaCancelacion] = useState('');
+  const [fechaCancelacion, setFechaCancelacion] = useState(hoyISO);
   const [motivo, setMotivo] = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
   const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
   const [mensajeCancelacion, setMensajeCancelacion] = useState<string | null>(null);
   const [errorCancelacion, setErrorCancelacion] = useState<string | null>(null);
+  const [profesionales, setProfesionales] = useState<Profesional[]>([]);
+  const [cargandoProfesionales, setCargandoProfesionales] = useState(false);
+
+  const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [cargandoPacientes, setCargandoPacientes] = useState(false);
+  const [busquedaPaciente, setBusquedaPaciente] = useState('');
 
   async function cargarDashboard(tokenActual: string) {
     setCargando(true);
@@ -92,6 +102,30 @@ export function AdminDashboard() {
     }
   }
 
+  async function cargarProfesionales(tokenActual: string, fecha: string) {
+    setCargandoProfesionales(true);
+    try {
+      const resp = await api.listarProfesionales(tokenActual, fecha);
+      setProfesionales(resp);
+    } catch {
+      setProfesionales([]);
+    } finally {
+      setCargandoProfesionales(false);
+    }
+  }
+
+  async function cargarPacientes(tokenActual: string) {
+    setCargandoPacientes(true);
+    try {
+      const resp = await api.listarPacientesAdmin(tokenActual);
+      setPacientes(resp);
+    } catch {
+      setPacientes([]);
+    } finally {
+      setCargandoPacientes(false);
+    }
+  }
+
   async function registrarCancelacion(e: FormEvent) {
     e.preventDefault();
     if (!profesionalId.trim() || !fechaCancelacion) return;
@@ -108,10 +142,10 @@ export function AdminDashboard() {
       });
       setMensajeCancelacion(`Evento #${evento.id} registrado (estado: ${evento.estado}).`);
       setProfesionalId('');
-      setFechaCancelacion('');
       setMotivo('');
       setRegistradoPor('');
       cargarDashboard(adminToken);
+      cargarProfesionales(adminToken, fechaCancelacion);
     } catch (err) {
       setErrorCancelacion(err instanceof ApiError ? err.message : 'No pudimos registrar la cancelación.');
     } finally {
@@ -122,9 +156,30 @@ export function AdminDashboard() {
   useEffect(() => {
     if (!adminToken) return;
     cargarDashboard(adminToken);
+    cargarPacientes(adminToken);
     const id = window.setInterval(() => cargarDashboard(adminToken), POLLING_MS);
     return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken]);
+
+  useEffect(() => {
+    if (!adminToken || !fechaCancelacion) return;
+    cargarProfesionales(adminToken, fechaCancelacion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, fechaCancelacion]);
+
+  const profesionalSeleccionado = useMemo(
+      () => profesionales.find((p) => String(p.id) === profesionalId) ?? null,
+      [profesionales, profesionalId],
+  );
+
+  const pacientesFiltrados = useMemo(() => {
+    const q = busquedaPaciente.trim().toLowerCase();
+    if (!q) return pacientes;
+    return pacientes.filter(
+        (p) => p.nombre.toLowerCase().includes(q) || p.rut.toLowerCase().includes(q),
+    );
+  }, [pacientes, busquedaPaciente]);
 
   const canalPie = useMemo(() => {
     if (!kpis) return [];
@@ -219,20 +274,33 @@ export function AdminDashboard() {
         </p>
         <form onSubmit={registrarCancelacion} className="admin-dashboard__cancelacion-form">
           <TextField
-            label="ID del profesional"
-            type="number"
-            min={1}
-            value={profesionalId}
-            onChange={(e) => setProfesionalId(e.target.value)}
-            required
-          />
-          <TextField
             label="Fecha de la agenda cancelada"
             type="date"
             value={fechaCancelacion}
             onChange={(e) => setFechaCancelacion(e.target.value)}
             required
           />
+          <div className="field">
+            <label htmlFor="profesional-ausente" className="field__label">
+              Profesional ausente
+            </label>
+            <select
+                id="profesional-ausente"
+                className="field__input"
+                value={profesionalId}
+                onChange={(e) => setProfesionalId(e.target.value)}
+                required
+            >
+              <option value="" disabled>
+                {cargandoProfesionales ? 'Cargando…' : 'Seleccionar profesional...'}
+              </option>
+              {profesionales.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} — {p.especialidad} ({p.citasAgendadas} citas)
+                  </option>
+              ))}
+            </select>
+          </div>
           <TextField
             label="Motivo"
             value={motivo}
@@ -246,7 +314,14 @@ export function AdminDashboard() {
             value={registradoPor}
             onChange={(e) => setRegistradoPor(e.target.value)}
           />
-          <Button type="submit" disabled={enviandoCancelacion}>
+          {profesionalSeleccionado && (
+              <p className="admin-dashboard__preview-aviso">
+                Se notificará a <strong>{profesionalSeleccionado.citasAgendadas}</strong> paciente
+                {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'} agendado
+                {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'} ese día.
+              </p>
+          )}
+          <Button type="submit" disabled={enviandoCancelacion || !profesionalId}>
             {enviandoCancelacion ? 'Registrando…' : 'Registrar cancelación'}
           </Button>
         </form>
@@ -404,6 +479,49 @@ export function AdminDashboard() {
                   </Card>
                 ))}
               </div>
+            )}
+          </section>
+
+          <section aria-labelledby="pacientes-titulo">
+            <div className="admin-dashboard__pacientes-header">
+              <h2 id="pacientes-titulo" className="admin-dashboard__section-title">Pacientes</h2>
+              <input
+                  type="text"
+                  className="admin-dashboard__pacientes-buscar"
+                  placeholder="Buscar por nombre o RUT..."
+                  value={busquedaPaciente}
+                  onChange={(e) => setBusquedaPaciente(e.target.value)}
+              />
+            </div>
+
+            {cargandoPacientes && <p className="admin-dashboard__vacio">Cargando pacientes…</p>}
+
+            {!cargandoPacientes && pacientesFiltrados.length === 0 && (
+                <Card className="admin-dashboard__vacio-card">
+                  <p>{pacientes.length === 0 ? 'No hay pacientes registrados.' : 'Sin resultados para tu búsqueda.'}</p>
+                </Card>
+            )}
+
+            {!cargandoPacientes && pacientesFiltrados.length > 0 && (
+                <div className="admin-dashboard__pacientes-lista">
+                  {pacientesFiltrados.map((p) => (
+                      <Card key={p.id} className="paciente-card">
+                        <div className="paciente-card__info">
+                          <p className="paciente-card__nombre">{p.nombre}</p>
+                          <p className="paciente-card__meta">
+                            RUT: {p.rut} · Tel: {p.telefono ?? 'sin registrar'}
+                          </p>
+                          <p className="paciente-card__meta">
+                            Canal preferido: {p.canalPreferido}
+                            {p.adultoMayor ? ' · Adulto mayor' : ''}
+                          </p>
+                        </div>
+                        <span className={`chip ${p.telefono && p.email ? 'chip--ok' : 'chip--warn'}`}>
+                          {p.telefono && p.email ? 'Datos OK' : 'Actualizar datos'}
+                        </span>
+                      </Card>
+                  ))}
+                </div>
             )}
           </section>
         </>

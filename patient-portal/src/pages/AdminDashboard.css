@@ -159,3 +159,76 @@
   color: var(--color-success);
   font-size: 14px;
 }
+
+.admin-dashboard__preview-aviso {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  color: var(--color-accent);
+  background: var(--color-accent-tint);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+}
+
+.admin-dashboard__pacientes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.admin-dashboard__pacientes-header .admin-dashboard__section-title {
+  margin-bottom: 0;
+}
+
+.admin-dashboard__pacientes-buscar {
+  min-height: 40px;
+  min-width: 240px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.admin-dashboard__pacientes-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.paciente-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.paciente-card__nombre {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.paciente-card__meta {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+.chip--ok {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+
+.chip--warn {
+  background: var(--color-danger-tint);
+  color: var(--color-danger);
+}

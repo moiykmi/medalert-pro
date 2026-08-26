@@ -111,6 +111,13 @@ export interface EventoCancelacion {
   registradoPor: number | null;
 }
 
+export interface Profesional {
+  id: number;
+  nombre: string;
+  especialidad: string;
+  citasAgendadas: number;
+}
+
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -147,8 +154,8 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
-async function requestAdmin<T>(path: string, adminToken: string): Promise<T> {
-  const response = await fetch(`${ADMIN_BASE_URL}${path}`, {
+async function requestAdmin<T>(baseUrl: string, path: string, adminToken: string): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -219,13 +226,19 @@ export const api = {
       request<Paciente>('/paciente/datos-contacto', { method: 'PUT', body: JSON.stringify(datos) }, token),
 
   adminDashboardKpis: (adminToken: string) =>
-      requestAdmin<AdminDashboardKpis>('/admin/dashboard/kpis', adminToken),
+      requestAdmin<AdminDashboardKpis>(ADMIN_BASE_URL, '/admin/dashboard/kpis', adminToken),
 
   adminDashboardEventos: (adminToken: string, limite = 20) =>
-      requestAdmin<AdminDashboardEvent[]>(`/admin/dashboard/eventos-recientes?limite=${limite}`, adminToken),
+      requestAdmin<AdminDashboardEvent[]>(ADMIN_BASE_URL, `/admin/dashboard/eventos-recientes?limite=${limite}`, adminToken),
 
   registrarCancelacion: (adminToken: string, datos: RegistrarCancelacionRequest) =>
       requestAdminPost<EventoCancelacion>(FHIR_BASE_URL, '/eventos/cancelacion', adminToken, datos),
+
+  listarProfesionales: (adminToken: string, fecha: string) =>
+      requestAdmin<Profesional[]>(FHIR_BASE_URL, `/profesionales?fecha=${fecha}`, adminToken),
+
+  listarPacientesAdmin: (adminToken: string) =>
+      requestAdmin<Paciente[]>(BASE_URL, '/admin/pacientes', adminToken),
 };
 
 export { ApiError };

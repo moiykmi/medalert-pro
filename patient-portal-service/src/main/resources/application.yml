@@ -51,6 +51,8 @@ medalert:
     ttl-minutos: 5
   sesion:
     ttl-minutos: 30
+  admin:
+    token: ${MEDALERT_ADMIN_TOKEN:medalert-admin-dev-token}
 
 logging:
   level:
