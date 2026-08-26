@@ -140,3 +140,22 @@
 .admin-dashboard__vacio-card {
   color: var(--color-text-muted);
 }
+
+.admin-dashboard__cancelacion-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-dashboard__cancelacion-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin-top: 8px;
+}
+
+.admin-dashboard__exito {
+  color: var(--color-success);
+  font-size: 14px;
+}

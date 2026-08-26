@@ -109,6 +109,7 @@ class EventoCancelacionControllerIntegrationTest {
                 """.formatted(profesionalId);
 
         mockMvc.perform(post("/eventos/cancelacion")
+                        .header("X-Admin-Token", "medalert-admin-dev-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -145,6 +146,7 @@ class EventoCancelacionControllerIntegrationTest {
                 """.formatted(profesionalId);
 
         mockMvc.perform(post("/eventos/cancelacion")
+                        .header("X-Admin-Token", "medalert-admin-dev-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())

@@ -16,6 +16,7 @@ import {
 import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError } from '../api/client';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { TextField } from '../components/TextField';
 import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
@@ -60,6 +61,14 @@ export function AdminDashboard() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [profesionalId, setProfesionalId] = useState('');
+  const [fechaCancelacion, setFechaCancelacion] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [registradoPor, setRegistradoPor] = useState('');
+  const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
+  const [mensajeCancelacion, setMensajeCancelacion] = useState<string | null>(null);
+  const [errorCancelacion, setErrorCancelacion] = useState<string | null>(null);
+
   async function cargarDashboard(tokenActual: string) {
     setCargando(true);
     setError(null);
@@ -80,6 +89,33 @@ export function AdminDashboard() {
       setError('No pudimos cargar el dashboard administrativo.');
     } finally {
       setCargando(false);
+    }
+  }
+
+  async function registrarCancelacion(e: FormEvent) {
+    e.preventDefault();
+    if (!profesionalId.trim() || !fechaCancelacion) return;
+
+    setEnviandoCancelacion(true);
+    setMensajeCancelacion(null);
+    setErrorCancelacion(null);
+    try {
+      const evento = await api.registrarCancelacion(adminToken, {
+        profesionalId: Number(profesionalId),
+        fecha: fechaCancelacion,
+        motivo: motivo.trim() || undefined,
+        registradoPor: registradoPor.trim() ? Number(registradoPor) : undefined,
+      });
+      setMensajeCancelacion(`Evento #${evento.id} registrado (estado: ${evento.estado}).`);
+      setProfesionalId('');
+      setFechaCancelacion('');
+      setMotivo('');
+      setRegistradoPor('');
+      cargarDashboard(adminToken);
+    } catch (err) {
+      setErrorCancelacion(err instanceof ApiError ? err.message : 'No pudimos registrar la cancelación.');
+    } finally {
+      setEnviandoCancelacion(false);
     }
   }
 
@@ -175,6 +211,48 @@ export function AdminDashboard() {
           Cerrar acceso admin
         </Button>
       </header>
+
+      <Card className="admin-dashboard__cancelacion-card">
+        <h2 className="admin-dashboard__section-title">Registrar cancelación de cita</h2>
+        <p className="admin-dashboard__vacio">
+          Registra la ausencia de un profesional para disparar el aviso multicanal a los pacientes agendados ese día.
+        </p>
+        <form onSubmit={registrarCancelacion} className="admin-dashboard__cancelacion-form">
+          <TextField
+            label="ID del profesional"
+            type="number"
+            min={1}
+            value={profesionalId}
+            onChange={(e) => setProfesionalId(e.target.value)}
+            required
+          />
+          <TextField
+            label="Fecha de la agenda cancelada"
+            type="date"
+            value={fechaCancelacion}
+            onChange={(e) => setFechaCancelacion(e.target.value)}
+            required
+          />
+          <TextField
+            label="Motivo"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder="Ej: Licencia médica"
+          />
+          <TextField
+            label="ID del usuario admin que registra (opcional)"
+            type="number"
+            min={1}
+            value={registradoPor}
+            onChange={(e) => setRegistradoPor(e.target.value)}
+          />
+          <Button type="submit" disabled={enviandoCancelacion}>
+            {enviandoCancelacion ? 'Registrando…' : 'Registrar cancelación'}
+          </Button>
+        </form>
+        {mensajeCancelacion && <p className="admin-dashboard__exito" role="status">{mensajeCancelacion}</p>}
+        {errorCancelacion && <p className="admin-dashboard__error" role="alert">{errorCancelacion}</p>}
+      </Card>
 
       {error && (
         <Card className="admin-dashboard__error-card" role="alert">

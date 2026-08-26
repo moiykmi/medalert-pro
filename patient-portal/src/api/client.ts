@@ -1,5 +1,6 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8083';
 const ADMIN_BASE_URL = import.meta.env.VITE_ADMIN_BASE_URL ?? 'http://localhost:8082';
+const FHIR_BASE_URL = import.meta.env.VITE_FHIR_BASE_URL ?? 'http://localhost:8081';
 
 export interface Sesion {
   token: string;
@@ -77,6 +78,22 @@ export interface AdminDashboardEvent {
   ultimoHito: string | null;
 }
 
+export interface RegistrarCancelacionRequest {
+  profesionalId: number;
+  fecha: string; // YYYY-MM-DD
+  motivo?: string;
+  registradoPor?: number;
+}
+
+export interface EventoCancelacion {
+  id: number;
+  profesionalId: number;
+  fechaEvento: string;
+  motivo: string | null;
+  estado: string;
+  registradoPor: number | null;
+}
+
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -137,6 +154,31 @@ async function requestAdmin<T>(path: string, adminToken: string): Promise<T> {
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
+async function requestAdminPost<T>(baseUrl: string, path: string, adminToken: string, body: unknown): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': adminToken,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let mensaje = `Error ${response.status}`;
+    try {
+      const cuerpo = await response.json();
+      mensaje = cuerpo?.message || cuerpo?.error || mensaje;
+    } catch {
+      // el cuerpo no era JSON, se deja el mensaje genérico
+    }
+    throw new ApiError(response.status, mensaje);
+  }
+
+  const text = await response.text();
+  return text ? (JSON.parse(text) as T) : (undefined as T);
+}
+
 export const api = {
   solicitarOtp: (rut: string) =>
       request<void>('/auth/solicitar-otp', { method: 'POST', body: JSON.stringify({ rut }) }),
@@ -156,6 +198,9 @@ export const api = {
 
   adminDashboardEventos: (adminToken: string, limite = 20) =>
       requestAdmin<AdminDashboardEvent[]>(`/admin/dashboard/eventos-recientes?limite=${limite}`, adminToken),
+
+  registrarCancelacion: (adminToken: string, datos: RegistrarCancelacionRequest) =>
+      requestAdminPost<EventoCancelacion>(FHIR_BASE_URL, '/eventos/cancelacion', adminToken, datos),
 };
 
 export { ApiError };
