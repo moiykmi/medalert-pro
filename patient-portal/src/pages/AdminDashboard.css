@@ -69,6 +69,7 @@
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px;
 }
 .ma-app .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ma-app .divider { height: 1px; background: #E2E8F0; margin: 16px 0; }
 .ma-app .info-box {
   font-size: 12px; color: #475569; padding: 10px 12px; background: #F8FAFC;
   border-radius: 10px; border: 1px solid #E2E8F0; display: flex; align-items: flex-start; gap: 7px; line-height: 1.5;
@@ -192,5 +193,11 @@
 .ma-vacio-card { color: #64748B; }
 
 @media (max-width: 860px) {
+  .ma-app .two { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .ma-app .topbar { display: none; }
+  .ma-app { background: #fff; }
   .ma-app .two { grid-template-columns: 1fr; }
 }

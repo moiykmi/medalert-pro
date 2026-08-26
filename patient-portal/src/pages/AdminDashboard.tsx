@@ -13,16 +13,40 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Paciente, Profesional } from '../api/client';
+import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Paciente, Profesional, ReporteMensual } from '../api/client';
 import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
 const POLLING_MS = 20_000;
 
-type Tab = 'dashboard' | 'agenda' | 'pacientes' | 'notificaciones';
+type Tab = 'dashboard' | 'agenda' | 'pacientes' | 'notificaciones' | 'reportes';
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function mesActualISO(): string {
+  return hoyISO().slice(0, 7);
+}
+
+function ultimosMeses(cantidad: number): string[] {
+  const meses: string[] = [];
+  const base = new Date();
+  for (let i = 0; i < cantidad; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+    meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return meses;
+}
+
+function formatPeriodo(periodo: string): string {
+  const [anio, mes] = periodo.split('-').map(Number);
+  return new Date(anio, mes - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+}
+
+function formatMesCorto(periodo: string): string {
+  const [anio, mes] = periodo.split('-').map(Number);
+  return new Date(anio, mes - 1, 1).toLocaleDateString('es-CL', { month: 'short' });
 }
 
 type EstadoCanal = 'confirmado' | 'pendiente' | 'reintentando' | 'sin_respuesta';
@@ -86,6 +110,10 @@ export function AdminDashboard() {
   const [cargandoPacientes, setCargandoPacientes] = useState(false);
   const [busquedaPaciente, setBusquedaPaciente] = useState('');
 
+  const [periodoReporte, setPeriodoReporte] = useState(mesActualISO);
+  const [reporte, setReporte] = useState<ReporteMensual | null>(null);
+  const [cargandoReporte, setCargandoReporte] = useState(false);
+
   async function cargarDashboard(tokenActual: string) {
     setCargando(true);
     setError(null);
@@ -130,6 +158,18 @@ export function AdminDashboard() {
       setPacientes([]);
     } finally {
       setCargandoPacientes(false);
+    }
+  }
+
+  async function cargarReporte(tokenActual: string, periodo: string) {
+    setCargandoReporte(true);
+    try {
+      const resp = await api.reporteMensual(tokenActual, periodo);
+      setReporte(resp);
+    } catch {
+      setReporte(null);
+    } finally {
+      setCargandoReporte(false);
     }
   }
 
@@ -179,6 +219,12 @@ export function AdminDashboard() {
     cargarProfesionales(adminToken, fechaCancelacion, horaInicioCancelacion || undefined, horaFinCancelacion || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, fechaCancelacion, horaInicioCancelacion, horaFinCancelacion]);
+
+  useEffect(() => {
+    if (!adminToken || tab !== 'reportes') return;
+    cargarReporte(adminToken, periodoReporte);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, tab, periodoReporte]);
 
   const profesionalSeleccionado = useMemo(
       () => profesionales.find((p) => String(p.id) === profesionalId) ?? null,
@@ -275,6 +321,9 @@ export function AdminDashboard() {
           </button>
           <button className={`nb ${tab === 'notificaciones' ? 'on' : ''}`} onClick={() => setTab('notificaciones')}>
             <i className="ti ti-send" />Notificaciones
+          </button>
+          <button className={`nb ${tab === 'reportes' ? 'on' : ''}`} onClick={() => setTab('reportes')}>
+            <i className="ti ti-chart-bar" />Reportes
           </button>
         </div>
         <button
@@ -640,6 +689,133 @@ export function AdminDashboard() {
                   </p>
                 </div>
               ))
+            )}
+          </>
+        )}
+
+        {tab === 'reportes' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <div className="stitle" style={{ marginBottom: 0 }}>
+                <i className="ti ti-chart-bar" style={{ color: '#1D4ED8' }} /> Reportes y KPIs — {formatPeriodo(periodoReporte)}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select
+                    className="form-select"
+                    style={{ width: 160, fontSize: 12 }}
+                    value={periodoReporte}
+                    onChange={(e) => setPeriodoReporte(e.target.value)}
+                >
+                  {ultimosMeses(12).map((m) => (
+                      <option key={m} value={m}>{formatPeriodo(m)}</option>
+                  ))}
+                </select>
+                <button className="btn-sec" style={{ fontSize: 12 }} onClick={() => window.print()}>
+                  <i className="ti ti-download" style={{ fontSize: 14 }} /> Exportar PDF
+                </button>
+              </div>
+            </div>
+
+            {cargandoReporte && !reporte && <p className="ma-vacio">Cargando reporte…</p>}
+            {!cargandoReporte && !reporte && (
+              <div className="card ma-vacio-card"><p>No pudimos cargar el reporte de este período.</p></div>
+            )}
+
+            {reporte && (
+              <>
+                <div className="kpis">
+                  <div className="kpi">
+                    <div className="kpi-icon" style={{ background: '#DBEAFE', color: '#1D4ED8' }}><i className="ti ti-send" /></div>
+                    <div className="kl">Total notificaciones</div>
+                    <div className="kv">{reporte.totalNotificaciones}</div>
+                    <div className="ks">{reporte.porcentajeEntrega.toFixed(2)}% tasa entrega</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-icon" style={{ background: '#EDE9FE', color: '#5B21B6' }}><i className="ti ti-calendar-plus" /></div>
+                    <div className="kl">Reagendamientos</div>
+                    <div className="kv">{reporte.reagendamientos}</div>
+                    <div className="ks">vía portal (autoservicio)</div>
+                  </div>
+                  <div className="kpi" title={reporte.horasAhorradasNotaMetodologica}>
+                    <div className="kpi-icon" style={{ background: '#FEF3C7', color: '#92400E' }}><i className="ti ti-clock-off" /></div>
+                    <div className="kl">Horas admin. ahorradas <i className="ti ti-info-circle" style={{ fontSize: 11 }} /></div>
+                    <div className="kv">{reporte.horasAhorradasEstimadas.toFixed(1)} h</div>
+                    <div className="ks">estimado — este mes</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-icon" style={{ background: '#D1FAE5', color: '#065F46' }}><i className="ti ti-trending-down" /></div>
+                    <div className="kl">Tasa de ausentismo</div>
+                    <div className={pctColorClass(reporte.tasaAusentismo, reporte.tasaAusentismoMesAnterior, true)}>
+                      {reporte.tasaAusentismo.toFixed(2)}%
+                    </div>
+                    <div className="ks">Mes anterior: {reporte.tasaAusentismoMesAnterior.toFixed(2)}%</div>
+                  </div>
+                </div>
+
+                <div className="two">
+                  <div>
+                    <div className="stitle" style={{ fontSize: 13 }}>Notificaciones por canal</div>
+                    <div className="card">
+                      {reporte.notificacionesPorCanal.length === 0 ? (
+                        <p className="ma-vacio">Sin notificaciones en este período.</p>
+                      ) : (
+                        <>
+                          <div className="chart-wrap" style={{ marginBottom: 8 }}>
+                            <ResponsiveContainer width="100%" height={200}>
+                              <BarChart data={reporte.notificacionesPorCanal}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="canal" />
+                                <YAxis allowDecimals={false} />
+                                <Tooltip />
+                                <Bar dataKey="enviados" fill="#1D4ED8" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                          {reporte.notificacionesPorCanal.map((c) => (
+                            <div key={c.canal} className="stat-row">
+                              <div className="stat-name">{c.canal}</div>
+                              <div className="stat-val">{c.enviados} enviados · {c.porcentajeEntregado.toFixed(1)}% entregado</div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="stitle" style={{ fontSize: 13 }}>Ausentismo mensual — evolución</div>
+                    <div className="card">
+                      <div className="chart-wrap" style={{ marginBottom: 8 }}>
+                        <ResponsiveContainer width="100%" height={180}>
+                          <LineChart data={reporte.ausentismoEvolucion.map((p) => ({ mes: formatMesCorto(p.periodo), tasa: p.tasa }))}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="mes" />
+                            <YAxis allowDecimals={false} />
+                            <Tooltip />
+                            <Line type="monotone" dataKey="tasa" stroke="#EF4444" strokeWidth={2} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="divider" />
+                      <div className="stitle" style={{ fontSize: 13, marginBottom: 8 }}>Escalamientos por canal</div>
+                      <div className="stat-row">
+                        <div className="stat-name">SMS → WhatsApp (escalados)</div>
+                        <div className="stat-val">{reporte.escalamientos.smsAWhatsapp} de {reporte.escalamientos.totalContactados}</div>
+                      </div>
+                      <div className="stat-row">
+                        <div className="stat-name">WhatsApp → Email (escalados)</div>
+                        <div className="stat-val">{reporte.escalamientos.whatsappAEmail} de {reporte.escalamientos.totalContactados}</div>
+                      </div>
+                      <div className="stat-row">
+                        <div className="stat-name">Sin contacto definitivo</div>
+                        <div className="stat-val" style={{ color: reporte.escalamientos.sinContactoDefinitivo > 0 ? '#BE123C' : undefined }}>
+                          {reporte.escalamientos.sinContactoDefinitivo}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </>
         )}

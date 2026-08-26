@@ -2,14 +2,17 @@ package cl.medalertpro.notification.controller;
 
 import cl.medalertpro.notification.dto.AdminDashboardEventDto;
 import cl.medalertpro.notification.dto.AdminDashboardKpisResponse;
+import cl.medalertpro.notification.dto.ReporteMensualResponse;
 import cl.medalertpro.notification.service.AdminAuthGuard;
 import cl.medalertpro.notification.service.AdminDashboardService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.YearMonth;
 import java.util.List;
 
 @RestController
@@ -36,5 +39,13 @@ public class AdminDashboardController {
             HttpServletRequest request) {
         authGuard.validar(request);
         return dashboardService.obtenerEventosRecientes(limite);
+    }
+
+    @GetMapping("/reporte-mensual")
+    public ReporteMensualResponse reporteMensual(
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo,
+            HttpServletRequest request) {
+        authGuard.validar(request);
+        return dashboardService.obtenerReporteMensual(periodo != null ? periodo : YearMonth.now());
     }
 }

@@ -2,6 +2,7 @@ package cl.medalertpro.notification.service;
 
 import cl.medalertpro.notification.dto.AdminDashboardEventDto;
 import cl.medalertpro.notification.dto.AdminDashboardKpisResponse;
+import cl.medalertpro.notification.dto.ReporteMensualResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,12 +15,14 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +58,7 @@ class AdminDashboardServiceTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         service = new AdminDashboardService(jdbcTemplate, redisTemplate, objectMapper);
+        ReflectionTestUtils.setField(service, "minutosPorNotificacionManual", 3.0);
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null); // cache miss por defecto
@@ -175,6 +179,71 @@ class AdminDashboardServiceTest {
         var paramsCaptor = org.mockito.ArgumentCaptor.forClass(SqlParameterSource.class);
         verify(jdbcTemplate).query(anyString(), paramsCaptor.capture(), ArgumentMatchersHelper.<Object>rowMapper());
         assertThat(paramsCaptor.getValue().getValue("limite")).isEqualTo(1);
+    }
+
+    @Test
+    void calculaReporteMensualApartirDeLasFilasDevueltasPorLaBaseDeDatos() throws SQLException {
+        YearMonth periodo = YearMonth.of(2026, 8);
+
+        stubQueryForObject("AS exitosas", row("total", 20L, "exitosas", 18L));
+        stubQueryForObjectLong("FROM reagendamiento", 4L);
+
+        when(jdbcTemplate.query(contains("GROUP BY canal"), any(SqlParameterSource.class), ArgumentMatchersHelper.<Object>rowMapper()))
+                .thenAnswer(invocation -> {
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    return List.of(mapper.mapRow(fakeResultSet(row("canal", "SMS", "enviados", 10L, "exitosos", 9L)), 1));
+                });
+
+        stubQueryForObject("sms_a_whatsapp", row("total_contactados", 12L, "sms_a_whatsapp", 5L, "whatsapp_a_email", 2L));
+        stubQueryForObjectLong("WHERE rn = 1", 3L);
+
+        // Ausentismo: distinto valor por mes según el "desde" recibido, para poder
+        // distinguir el período actual, el mes anterior y los puntos de la evolución.
+        when(jdbcTemplate.queryForObject(contains("FROM cita"), any(SqlParameterSource.class), ArgumentMatchersHelper.<Object>rowMapper()))
+                .thenAnswer(invocation -> {
+                    SqlParameterSource params = invocation.getArgument(1);
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    LocalDateTime desde = (LocalDateTime) params.getValue("desde");
+                    YearMonth mes = YearMonth.from(desde);
+                    Map<String, Object> data = mes.equals(periodo)
+                            ? row("no_asistio", 2L, "resueltas", 20L)   // 10.0%
+                            : row("no_asistio", 3L, "resueltas", 20L);  // 15.0% (todos los demás meses)
+                    return mapper.mapRow(fakeResultSet(data), 1);
+                });
+
+        ReporteMensualResponse reporte = service.obtenerReporteMensual(periodo);
+
+        assertThat(reporte.getPeriodo()).isEqualTo("2026-08");
+        assertThat(reporte.getTotalNotificaciones()).isEqualTo(20);
+        assertThat(reporte.getPorcentajeEntrega()).isEqualTo(90.0);
+        assertThat(reporte.getHorasAhorradasEstimadas()).isEqualTo((18 * 3.0) / 60.0);
+        assertThat(reporte.getHorasAhorradasNotaMetodologica()).contains("Estimación");
+        assertThat(reporte.getReagendamientos()).isEqualTo(4);
+
+        assertThat(reporte.getNotificacionesPorCanal()).hasSize(1);
+        assertThat(reporte.getNotificacionesPorCanal().get(0).getCanal()).isEqualTo("SMS");
+        assertThat(reporte.getNotificacionesPorCanal().get(0).getPorcentajeEntregado()).isEqualTo(90.0);
+
+        assertThat(reporte.getEscalamientos().getTotalContactados()).isEqualTo(12);
+        assertThat(reporte.getEscalamientos().getSmsAWhatsapp()).isEqualTo(5);
+        assertThat(reporte.getEscalamientos().getWhatsappAEmail()).isEqualTo(2);
+        assertThat(reporte.getEscalamientos().getSinContactoDefinitivo()).isEqualTo(3);
+
+        assertThat(reporte.getTasaAusentismo()).isEqualTo(10.0);
+        assertThat(reporte.getTasaAusentismoMesAnterior()).isEqualTo(15.0);
+
+        assertThat(reporte.getAusentismoEvolucion()).hasSize(6);
+        assertThat(reporte.getAusentismoEvolucion().get(5).getPeriodo()).isEqualTo("2026-08");
+        assertThat(reporte.getAusentismoEvolucion().get(5).getTasa()).isEqualTo(10.0);
+        assertThat(reporte.getAusentismoEvolucion().get(0).getPeriodo()).isEqualTo("2026-03");
+        assertThat(reporte.getAusentismoEvolucion().get(0).getTasa()).isEqualTo(15.0);
+
+        verify(valueOperations).set(eq("admin-dashboard:reporte:2026-08"), anyString(), eq(Duration.ofSeconds(20)));
+    }
+
+    private void stubQueryForObjectLong(String sqlContains, long value) {
+        when(jdbcTemplate.queryForObject(contains(sqlContains), any(SqlParameterSource.class), eq(Long.class)))
+                .thenReturn(value);
     }
 
     private void stubQueryForObject(String sqlContains, Map<String, Object> data) throws SQLException {

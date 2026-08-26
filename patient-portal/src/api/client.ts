@@ -120,6 +120,25 @@ export interface Profesional {
   citasAgendadas: number;
 }
 
+export interface ReporteMensual {
+  periodo: string; // "2026-08"
+  totalNotificaciones: number;
+  porcentajeEntrega: number;
+  reagendamientos: number;
+  horasAhorradasEstimadas: number;
+  horasAhorradasNotaMetodologica: string;
+  tasaAusentismo: number;
+  tasaAusentismoMesAnterior: number;
+  notificacionesPorCanal: Array<{ canal: string; enviados: number; porcentajeEntregado: number }>;
+  ausentismoEvolucion: Array<{ periodo: string; tasa: number }>;
+  escalamientos: {
+    smsAWhatsapp: number;
+    whatsappAEmail: number;
+    sinContactoDefinitivo: number;
+    totalContactados: number;
+  };
+}
+
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -245,6 +264,9 @@ export const api = {
 
   listarPacientesAdmin: (adminToken: string) =>
       requestAdmin<Paciente[]>(BASE_URL, '/admin/pacientes', adminToken),
+
+  reporteMensual: (adminToken: string, periodo: string) =>
+      requestAdmin<ReporteMensual>(ADMIN_BASE_URL, `/admin/dashboard/reporte-mensual?periodo=${periodo}`, adminToken),
 };
 
 export { ApiError };

@@ -2,11 +2,13 @@ package cl.medalertpro.notification.service;
 
 import cl.medalertpro.notification.dto.AdminDashboardEventDto;
 import cl.medalertpro.notification.dto.AdminDashboardKpisResponse;
+import cl.medalertpro.notification.dto.ReporteMensualResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.SerializationException;
@@ -17,6 +19,9 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -27,10 +32,18 @@ public class AdminDashboardService {
     private static final Duration CACHE_TTL = Duration.ofSeconds(20);
     private static final String KPI_CACHE_KEY = "admin-dashboard:kpis";
     private static final String EVENTS_CACHE_KEY_PREFIX = "admin-dashboard:events:";
+    private static final String REPORTE_CACHE_KEY_PREFIX = "admin-dashboard:reporte:";
+    private static final int MESES_EVOLUCION_AUSENTISMO = 6;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+
+    // Estimación editorial (no medida): minutos que le habría tomado al personal
+    // administrativo contactar manualmente a cada paciente si no existiera el
+    // envío automático de notificaciones. Ver ReporteMensualResponse.horasAhorradasNotaMetodologica.
+    @Value("${medalert.reportes.minutos-por-notificacion-manual:3}")
+    private double minutosPorNotificacionManual;
 
     public AdminDashboardService(NamedParameterJdbcTemplate jdbcTemplate,
                                  StringRedisTemplate redisTemplate,
@@ -50,6 +63,143 @@ public class AdminDashboardService {
                 .constructCollectionType(List.class, AdminDashboardEventDto.class);
         return leerConCache(EVENTS_CACHE_KEY_PREFIX + limiteSeguro, listType,
                 () -> consultarEventosRecientes(limiteSeguro));
+    }
+
+    public ReporteMensualResponse obtenerReporteMensual(YearMonth periodo) {
+        return leerConCache(REPORTE_CACHE_KEY_PREFIX + periodo, ReporteMensualResponse.class,
+                () -> consultarReporteMensual(periodo));
+    }
+
+    private ReporteMensualResponse consultarReporteMensual(YearMonth periodo) {
+        LocalDateTime desde = periodo.atDay(1).atStartOfDay();
+        LocalDateTime hasta = periodo.plusMonths(1).atDay(1).atStartOfDay();
+
+        ReporteMensualResponse response = new ReporteMensualResponse();
+        response.setPeriodo(periodo.toString());
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("desde", desde)
+                .addValue("hasta", hasta);
+
+        jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN estado_envio IN ('ENVIADO','CONFIRMADO','LEIDO','SIN_RESPUESTA') THEN 1 ELSE 0 END) AS exitosas
+                FROM notificacion n
+                JOIN evento_cancelacion e ON e.id = n.evento_id
+                WHERE e.fecha_evento >= :desde AND e.fecha_evento < :hasta
+                """, params, (rs, rowNum) -> {
+            long total = rs.getLong("total");
+            long exitosas = rs.getLong("exitosas");
+            response.setTotalNotificaciones(total);
+            response.setPorcentajeEntrega(porcentaje(exitosas, total));
+            response.setHorasAhorradasEstimadas(redondear2((exitosas * minutosPorNotificacionManual) / 60.0));
+            return null;
+        });
+        response.setHorasAhorradasNotaMetodologica(
+                "Estimación: " + minutosPorNotificacionManual + " min por notificación entregada automáticamente "
+                        + "(tiempo que le habría tomado al personal administrativo contactar manualmente al paciente). No es una medición directa.");
+
+        Long reagendamientos = jdbcTemplate.queryForObject("""
+                SELECT COUNT(DISTINCT cita_original_id)
+                FROM reagendamiento
+                WHERE estado = 'CONFIRMADO' AND fecha_solicitud >= :desde AND fecha_solicitud < :hasta
+                """, params, Long.class);
+        response.setReagendamientos(reagendamientos == null ? 0 : reagendamientos);
+
+        response.setNotificacionesPorCanal(cargarCanalStats(desde, hasta));
+        response.setEscalamientos(cargarEscalamientos(desde, hasta));
+
+        response.setTasaAusentismo(cargarTasaAusentismo(desde, hasta));
+
+        YearMonth mesAnterior = periodo.minusMonths(1);
+        response.setTasaAusentismoMesAnterior(
+                cargarTasaAusentismo(mesAnterior.atDay(1).atStartOfDay(), periodo.atDay(1).atStartOfDay()));
+
+        response.setAusentismoEvolucion(cargarAusentismoEvolucion(periodo));
+
+        return response;
+    }
+
+    private List<ReporteMensualResponse.CanalStat> cargarCanalStats(LocalDateTime desde, LocalDateTime hasta) {
+        String sql = """
+                SELECT canal,
+                       COUNT(*) AS enviados,
+                       SUM(CASE WHEN estado_envio IN ('ENVIADO','CONFIRMADO','LEIDO','SIN_RESPUESTA') THEN 1 ELSE 0 END) AS exitosos
+                FROM notificacion n
+                JOIN evento_cancelacion e ON e.id = n.evento_id
+                WHERE e.fecha_evento >= :desde AND e.fecha_evento < :hasta
+                GROUP BY canal
+                ORDER BY canal
+                """;
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("desde", desde).addValue("hasta", hasta);
+        return jdbcTemplate.query(sql, params, (rs, rowNum) -> {
+            ReporteMensualResponse.CanalStat dto = new ReporteMensualResponse.CanalStat();
+            dto.setCanal(rs.getString("canal"));
+            long enviados = rs.getLong("enviados");
+            dto.setEnviados(enviados);
+            dto.setPorcentajeEntregado(porcentaje(rs.getLong("exitosos"), enviados));
+            return dto;
+        });
+    }
+
+    private ReporteMensualResponse.EscalamientoStats cargarEscalamientos(LocalDateTime desde, LocalDateTime hasta) {
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("desde", desde).addValue("hasta", hasta);
+
+        // La escalación es determinística: intento 1 = SMS, intento 2 = WHATSAPP, intento 3 = EMAIL
+        // (ver EscalacionScheduler), así que el canal de una notificación identifica directamente
+        // si ese par (evento, paciente) escaló hasta ahí.
+        ReporteMensualResponse.EscalamientoStats stats = jdbcTemplate.queryForObject("""
+                SELECT COUNT(DISTINCT evento_id || '-' || paciente_id) AS total_contactados,
+                       COUNT(DISTINCT CASE WHEN canal = 'WHATSAPP' THEN evento_id || '-' || paciente_id END) AS sms_a_whatsapp,
+                       COUNT(DISTINCT CASE WHEN canal = 'EMAIL' THEN evento_id || '-' || paciente_id END) AS whatsapp_a_email
+                FROM notificacion n
+                JOIN evento_cancelacion e ON e.id = n.evento_id
+                WHERE e.fecha_evento >= :desde AND e.fecha_evento < :hasta
+                """, params, (rs, rowNum) -> {
+            ReporteMensualResponse.EscalamientoStats dto = new ReporteMensualResponse.EscalamientoStats();
+            dto.setTotalContactados(rs.getLong("total_contactados"));
+            dto.setSmsAWhatsapp(rs.getLong("sms_a_whatsapp"));
+            dto.setWhatsappAEmail(rs.getLong("whatsapp_a_email"));
+            return dto;
+        });
+
+        Long sinContactoDefinitivo = jdbcTemplate.queryForObject("""
+                WITH ultimos AS (
+                    SELECT n.estado_envio,
+                           ROW_NUMBER() OVER (PARTITION BY n.evento_id, n.paciente_id ORDER BY n.intento_numero DESC) AS rn
+                    FROM notificacion n
+                    JOIN evento_cancelacion e ON e.id = n.evento_id
+                    WHERE e.fecha_evento >= :desde AND e.fecha_evento < :hasta
+                )
+                SELECT COUNT(*) FROM ultimos WHERE rn = 1 AND estado_envio = 'SIN_RESPUESTA'
+                """, params, Long.class);
+        if (stats != null) {
+            stats.setSinContactoDefinitivo(sinContactoDefinitivo == null ? 0 : sinContactoDefinitivo);
+        }
+        return stats;
+    }
+
+    private double cargarTasaAusentismo(LocalDateTime desde, LocalDateTime hasta) {
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("desde", desde).addValue("hasta", hasta);
+        return jdbcTemplate.queryForObject("""
+                SELECT SUM(CASE WHEN estado = 'NO_ASISTIO' THEN 1 ELSE 0 END) AS no_asistio,
+                       SUM(CASE WHEN estado IN ('NO_ASISTIO','ATENDIDA') THEN 1 ELSE 0 END) AS resueltas
+                FROM cita
+                WHERE fecha_hora >= :desde AND fecha_hora < :hasta
+                """, params, (rs, rowNum) -> porcentaje(rs.getLong("no_asistio"), rs.getLong("resueltas")));
+    }
+
+    private List<ReporteMensualResponse.AusentismoMensualPoint> cargarAusentismoEvolucion(YearMonth periodo) {
+        List<ReporteMensualResponse.AusentismoMensualPoint> puntos = new ArrayList<>();
+        for (int i = MESES_EVOLUCION_AUSENTISMO - 1; i >= 0; i--) {
+            YearMonth mes = periodo.minusMonths(i);
+            double tasa = cargarTasaAusentismo(mes.atDay(1).atStartOfDay(), mes.plusMonths(1).atDay(1).atStartOfDay());
+            ReporteMensualResponse.AusentismoMensualPoint punto = new ReporteMensualResponse.AusentismoMensualPoint();
+            punto.setPeriodo(mes.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+            punto.setTasa(tasa);
+            puntos.add(punto);
+        }
+        return puntos;
     }
 
     private AdminDashboardKpisResponse consultarKpis() {

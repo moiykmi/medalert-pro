@@ -65,6 +65,11 @@ medalert:
     minutos-espera: ${ESCALACION_MINUTOS_ESPERA:60}
   admin:
     token: ${MEDALERT_ADMIN_TOKEN:medalert-admin-dev-token}
+  reportes:
+    # Estimación editorial usada solo para el KPI "horas admin. ahorradas" del
+    # reporte mensual: minutos que le habría tomado al personal contactar
+    # manualmente a cada paciente notificado. No es una medición real.
+    minutos-por-notificacion-manual: ${REPORTE_MINUTOS_POR_NOTIFICACION:3}
 
 logging:
   level:
