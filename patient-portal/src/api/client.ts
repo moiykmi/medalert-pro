@@ -139,6 +139,26 @@ export interface ReporteMensual {
   };
 }
 
+export interface MedicoSesion {
+  token: string;
+  profesionalId: number;
+  nombre: string;
+  especialidad: string;
+}
+
+export interface MedicoAgendaHoy {
+  nombre: string;
+  especialidad: string;
+  citasHoy: number;
+}
+
+export interface ReportarAusenciaRequest {
+  fecha: string; // YYYY-MM-DD
+  horaInicio?: string; // HH:mm
+  horaFin?: string; // HH:mm
+  motivo?: string;
+}
+
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -224,6 +244,30 @@ async function requestAdminPost<T>(baseUrl: string, path: string, adminToken: st
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
+async function requestFhir<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> | undefined),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(`${FHIR_BASE_URL}${path}`, { ...options, headers });
+
+  if (!response.ok) {
+    let mensaje = `Error ${response.status}`;
+    try {
+      const cuerpo = await response.json();
+      mensaje = cuerpo?.message || cuerpo?.error || mensaje;
+    } catch {
+      // el cuerpo no era JSON, se deja el mensaje genérico
+    }
+    throw new ApiError(response.status, mensaje);
+  }
+
+  const text = await response.text();
+  return text ? (JSON.parse(text) as T) : (undefined as T);
+}
+
 export const api = {
   solicitarOtp: (rut: string) =>
       request<void>('/auth/solicitar-otp', { method: 'POST', body: JSON.stringify({ rut }) }),
@@ -267,6 +311,14 @@ export const api = {
 
   reporteMensual: (adminToken: string, periodo: string) =>
       requestAdmin<ReporteMensual>(ADMIN_BASE_URL, `/admin/dashboard/reporte-mensual?periodo=${periodo}`, adminToken),
+
+  medicoLogin: (email: string, password: string) =>
+      requestFhir<MedicoSesion>('/medico/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+
+  medicoAgendaHoy: (token: string) => requestFhir<MedicoAgendaHoy>('/medico/agenda-hoy', {}, token),
+
+  medicoReportarAusencia: (datos: ReportarAusenciaRequest, token: string) =>
+      requestFhir<EventoCancelacion>('/medico/ausencia', { method: 'POST', body: JSON.stringify(datos) }, token),
 };
 
 export { ApiError };

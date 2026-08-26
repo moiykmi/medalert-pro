@@ -29,6 +29,12 @@ spring:
     username: ${RABBITMQ_DEFAULT_USER:medalert}
     password: ${RABBITMQ_DEFAULT_PASS:medalert_dev_pw}
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
 medalert:
   cors:
     allowed-origins: ${ALLOWED_ORIGIN:http://localhost:*,http://127.0.0.1:*}
@@ -40,6 +46,10 @@ medalert:
     queue: cancelaciones.eventos
   admin:
     token: ${MEDALERT_ADMIN_TOKEN:medalert-admin-dev-token}
+  medico:
+    # Sesión del portal médico (login por email+contraseña), token opaco en Redis
+    # igual que la sesión de pacientes — ver MedicoAuthService.
+    sesion-ttl-minutos: ${MEDICO_SESION_TTL_MINUTOS:240}
 
 logging:
   level:

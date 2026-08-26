@@ -24,4 +24,10 @@ public class ProfesionalSalud {
 
     @Column(name = "establecimiento_id", nullable = false)
     private Long establecimientoId;
+
+    @Column(length = 150, unique = true)
+    private String email;
+
+    @Column(name = "password_hash", length = 100)
+    private String passwordHash;
 }

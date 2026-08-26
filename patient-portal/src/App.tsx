@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sesion } from './api/client';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { Login } from './pages/Login';
+import { MedicoPortal } from './pages/MedicoPortal';
 import { Portal } from './pages/Portal';
 
 const STORAGE_KEY = 'medalert_sesion';
@@ -18,6 +19,7 @@ function cargarSesionGuardada(): Sesion | null {
 export default function App() {
   const adminRoute =
     window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/dashboard');
+  const medicoRoute = window.location.pathname.startsWith('/medico');
   const [sesion, setSesion] = useState<Sesion | null>(cargarSesionGuardada);
 
   function ingresar(nuevaSesion: Sesion) {
@@ -32,6 +34,10 @@ export default function App() {
 
   if (adminRoute) {
     return <AdminDashboard />;
+  }
+
+  if (medicoRoute) {
+    return <MedicoPortal />;
   }
 
   return sesion ? <Portal sesion={sesion} onSalir={salir} /> : <Login onIngreso={ingresar} />;
