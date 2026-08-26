@@ -72,6 +72,8 @@ export function AdminDashboard() {
 
   const [profesionalId, setProfesionalId] = useState('');
   const [fechaCancelacion, setFechaCancelacion] = useState(hoyISO);
+  const [horaInicioCancelacion, setHoraInicioCancelacion] = useState('');
+  const [horaFinCancelacion, setHoraFinCancelacion] = useState('');
   const [motivo, setMotivo] = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
   const [enviandoCancelacion, setEnviandoCancelacion] = useState(false);
@@ -107,10 +109,10 @@ export function AdminDashboard() {
     }
   }
 
-  async function cargarProfesionales(tokenActual: string, fecha: string) {
+  async function cargarProfesionales(tokenActual: string, fecha: string, horaInicio?: string, horaFin?: string) {
     setCargandoProfesionales(true);
     try {
-      const resp = await api.listarProfesionales(tokenActual, fecha);
+      const resp = await api.listarProfesionales(tokenActual, fecha, horaInicio, horaFin);
       setProfesionales(resp);
     } catch {
       setProfesionales([]);
@@ -131,9 +133,12 @@ export function AdminDashboard() {
     }
   }
 
+  const rangoHorarioInvalido =
+      horaInicioCancelacion !== '' && horaFinCancelacion !== '' && horaFinCancelacion <= horaInicioCancelacion;
+
   async function registrarCancelacion(e: FormEvent) {
     e.preventDefault();
-    if (!profesionalId.trim() || !fechaCancelacion) return;
+    if (!profesionalId.trim() || !fechaCancelacion || rangoHorarioInvalido) return;
 
     setEnviandoCancelacion(true);
     setMensajeCancelacion(null);
@@ -142,6 +147,8 @@ export function AdminDashboard() {
       const evento = await api.registrarCancelacion(adminToken, {
         profesionalId: Number(profesionalId),
         fecha: fechaCancelacion,
+        horaInicio: horaInicioCancelacion || undefined,
+        horaFin: horaFinCancelacion || undefined,
         motivo: motivo.trim() || undefined,
         registradoPor: registradoPor.trim() ? Number(registradoPor) : undefined,
       });
@@ -150,7 +157,7 @@ export function AdminDashboard() {
       setMotivo('');
       setRegistradoPor('');
       cargarDashboard(adminToken);
-      cargarProfesionales(adminToken, fechaCancelacion);
+      cargarProfesionales(adminToken, fechaCancelacion, horaInicioCancelacion || undefined, horaFinCancelacion || undefined);
     } catch (err) {
       setErrorCancelacion(err instanceof ApiError ? err.message : 'No pudimos registrar la cancelación.');
     } finally {
@@ -168,10 +175,10 @@ export function AdminDashboard() {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!adminToken || !fechaCancelacion) return;
-    cargarProfesionales(adminToken, fechaCancelacion);
+    if (!adminToken || !fechaCancelacion || rangoHorarioInvalido) return;
+    cargarProfesionales(adminToken, fechaCancelacion, horaInicioCancelacion || undefined, horaFinCancelacion || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminToken, fechaCancelacion]);
+  }, [adminToken, fechaCancelacion, horaInicioCancelacion, horaFinCancelacion]);
 
   const profesionalSeleccionado = useMemo(
       () => profesionales.find((p) => String(p.id) === profesionalId) ?? null,
@@ -445,6 +452,30 @@ export function AdminDashboard() {
                     />
                   </div>
                   <div style={{ marginBottom: 14 }}>
+                    <label className="form-label">Rango de horas (opcional — vacío = día completo)</label>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <input
+                        type="time"
+                        className="form-input"
+                        value={horaInicioCancelacion}
+                        onChange={(e) => setHoraInicioCancelacion(e.target.value)}
+                        aria-label="Hora de inicio"
+                      />
+                      <input
+                        type="time"
+                        className="form-input"
+                        value={horaFinCancelacion}
+                        onChange={(e) => setHoraFinCancelacion(e.target.value)}
+                        aria-label="Hora de término"
+                      />
+                    </div>
+                    {rangoHorarioInvalido && (
+                      <p className="ma-error-text" style={{ marginTop: 6 }}>
+                        La hora de término debe ser posterior a la hora de inicio.
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
                     <label className="form-label">Profesional ausente</label>
                     <select
                         className="form-select"
@@ -489,14 +520,20 @@ export function AdminDashboard() {
                       <span>
                         Se notificará a <strong>{profesionalSeleccionado.citasAgendadas}</strong> paciente
                         {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'} agendado
-                        {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'} ese día. El sistema enviará las
-                        notificaciones de forma inmediata y automática.
+                        {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'}
+                        {horaInicioCancelacion && horaFinCancelacion
+                            ? ` entre las ${horaInicioCancelacion} y las ${horaFinCancelacion}`
+                            : ' ese día'}. El sistema enviará las notificaciones de forma inmediata y automática.
                       </span>
                     </div>
                   )}
 
                   <form onSubmit={registrarCancelacion}>
-                    <button type="submit" className="btn-primary full" disabled={enviandoCancelacion || !profesionalId}>
+                    <button
+                        type="submit"
+                        className="btn-primary full"
+                        disabled={enviandoCancelacion || !profesionalId || rangoHorarioInvalido}
+                    >
                       <i className="ti ti-send" />
                       {enviandoCancelacion
                           ? 'Registrando…'

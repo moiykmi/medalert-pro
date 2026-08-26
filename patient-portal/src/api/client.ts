@@ -98,6 +98,8 @@ export interface AdminDashboardEvent {
 export interface RegistrarCancelacionRequest {
   profesionalId: number;
   fecha: string; // YYYY-MM-DD
+  horaInicio?: string; // HH:mm, opcional — si se omite junto con horaFin, se cancela el día completo
+  horaFin?: string; // HH:mm
   motivo?: string;
   registradoPor?: number;
 }
@@ -234,8 +236,12 @@ export const api = {
   registrarCancelacion: (adminToken: string, datos: RegistrarCancelacionRequest) =>
       requestAdminPost<EventoCancelacion>(FHIR_BASE_URL, '/eventos/cancelacion', adminToken, datos),
 
-  listarProfesionales: (adminToken: string, fecha: string) =>
-      requestAdmin<Profesional[]>(FHIR_BASE_URL, `/profesionales?fecha=${fecha}`, adminToken),
+  listarProfesionales: (adminToken: string, fecha: string, horaInicio?: string, horaFin?: string) => {
+    const params = new URLSearchParams({ fecha });
+    if (horaInicio) params.set('horaInicio', horaInicio);
+    if (horaFin) params.set('horaFin', horaFin);
+    return requestAdmin<Profesional[]>(FHIR_BASE_URL, `/profesionales?${params.toString()}`, adminToken);
+  },
 
   listarPacientesAdmin: (adminToken: string) =>
       requestAdmin<Paciente[]>(BASE_URL, '/admin/pacientes', adminToken),

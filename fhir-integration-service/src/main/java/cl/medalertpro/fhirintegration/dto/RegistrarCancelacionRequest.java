@@ -3,6 +3,7 @@ package cl.medalertpro.fhirintegration.dto;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 /**
  * Cuerpo esperado en POST /eventos/cancelacion
@@ -15,7 +16,12 @@ public class RegistrarCancelacionRequest {
     private Long profesionalId;
 
     @NotNull
-    private LocalDate fecha; // día completo de la agenda cancelada
+    private LocalDate fecha;
+
+    // Rango horario opcional (ej. 09:00 a 12:00). Si ambos quedan en null,
+    // se cancela el día completo (comportamiento anterior).
+    private LocalTime horaInicio;
+    private LocalTime horaFin;
 
     private String motivo;
 
@@ -26,6 +32,12 @@ public class RegistrarCancelacionRequest {
 
     public LocalDate getFecha() { return fecha; }
     public void setFecha(LocalDate fecha) { this.fecha = fecha; }
+
+    public LocalTime getHoraInicio() { return horaInicio; }
+    public void setHoraInicio(LocalTime horaInicio) { this.horaInicio = horaInicio; }
+
+    public LocalTime getHoraFin() { return horaFin; }
+    public void setHoraFin(LocalTime horaFin) { this.horaFin = horaFin; }
 
     public String getMotivo() { return motivo; }
     public void setMotivo(String motivo) { this.motivo = motivo; }

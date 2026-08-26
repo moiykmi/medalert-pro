@@ -53,17 +53,29 @@ public class EventoCancelacionService {
     @Transactional
     public EventoCancelacion registrarYPublicar(RegistrarCancelacionRequest request) {
 
+        if (request.getHoraInicio() != null && request.getHoraFin() != null
+                && !request.getHoraFin().isAfter(request.getHoraInicio())) {
+            throw new IllegalArgumentException("La hora de término debe ser posterior a la hora de inicio");
+        }
+
         // 1. Guardar el evento
         EventoCancelacion evento = new EventoCancelacion();
         evento.setProfesionalId(request.getProfesionalId());
         evento.setMotivo(request.getMotivo());
         evento.setRegistradoPor(request.getRegistradoPor());
+        evento.setHoraInicio(request.getHoraInicio());
+        evento.setHoraFin(request.getHoraFin());
         evento.setEstado("PROCESANDO");
         evento = eventoRepository.save(evento);
 
-        // 2. Buscar citas AGENDADAS de ese profesional para todo el día indicado
-        LocalDateTime desde = request.getFecha().atStartOfDay();
-        LocalDateTime hasta = request.getFecha().atTime(23, 59, 59);
+        // 2. Buscar citas AGENDADAS de ese profesional, dentro del rango horario indicado
+        // (o el día completo si no se especificó un rango — comportamiento anterior)
+        LocalDateTime desde = request.getHoraInicio() != null
+                ? request.getFecha().atTime(request.getHoraInicio())
+                : request.getFecha().atStartOfDay();
+        LocalDateTime hasta = request.getHoraFin() != null
+                ? request.getFecha().atTime(request.getHoraFin())
+                : request.getFecha().atTime(23, 59, 59);
 
         List<Cita> citasAfectadas = citaRepository.findByProfesionalIdAndEstadoAndFechaHoraBetween(
                 request.getProfesionalId(), "AGENDADA", desde, hasta);

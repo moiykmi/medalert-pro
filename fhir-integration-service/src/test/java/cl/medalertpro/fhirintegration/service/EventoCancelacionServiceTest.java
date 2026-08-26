@@ -19,16 +19,20 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,7 +61,7 @@ class EventoCancelacionServiceTest {
         ReflectionTestUtils.setField(service, "exchange", EXCHANGE);
         ReflectionTestUtils.setField(service, "routingKey", ROUTING_KEY);
 
-        when(eventoRepository.save(any(EventoCancelacion.class))).thenAnswer(invocation -> {
+        lenient().when(eventoRepository.save(any(EventoCancelacion.class))).thenAnswer(invocation -> {
             EventoCancelacion evento = invocation.getArgument(0);
             if (evento.getId() == null) {
                 ReflectionTestUtils.setField(evento, "id", 100L);
@@ -169,5 +173,46 @@ class EventoCancelacionServiceTest {
         ArgumentCaptor<CancelacionEventoMessage> mensajeCaptor = ArgumentCaptor.forClass(CancelacionEventoMessage.class);
         verify(rabbitTemplate).convertAndSend(eq(EXCHANGE), eq(ROUTING_KEY), mensajeCaptor.capture());
         assertThat(mensajeCaptor.getValue().getPacientesAfectados()).isEmpty();
+    }
+
+    @Test
+    void registrarYPublicar_conRangoHorario_consultaSoloEseRangoYLoGuardaEnElEvento() {
+        Long profesionalId = 1L;
+        LocalDate fecha = LocalDate.of(2026, 8, 1);
+
+        RegistrarCancelacionRequest request = new RegistrarCancelacionRequest();
+        request.setProfesionalId(profesionalId);
+        request.setFecha(fecha);
+        request.setHoraInicio(LocalTime.of(9, 0));
+        request.setHoraFin(LocalTime.of(12, 0));
+        request.setMotivo("Reunión clínica");
+        request.setRegistradoPor(9L);
+
+        when(citaRepository.findByProfesionalIdAndEstadoAndFechaHoraBetween(
+                eq(profesionalId), eq("AGENDADA"),
+                eq(fecha.atTime(9, 0)), eq(fecha.atTime(12, 0))))
+                .thenReturn(List.of());
+
+        EventoCancelacion resultado = service.registrarYPublicar(request);
+
+        assertThat(resultado.getHoraInicio()).isEqualTo(LocalTime.of(9, 0));
+        assertThat(resultado.getHoraFin()).isEqualTo(LocalTime.of(12, 0));
+
+        verify(citaRepository).findByProfesionalIdAndEstadoAndFechaHoraBetween(
+                eq(profesionalId), eq("AGENDADA"), eq(fecha.atTime(9, 0)), eq(fecha.atTime(12, 0)));
+    }
+
+    @Test
+    void registrarYPublicar_conHoraFinAntesQueHoraInicio_lanzaExcepcionSinTocarNada() {
+        RegistrarCancelacionRequest request = new RegistrarCancelacionRequest();
+        request.setProfesionalId(1L);
+        request.setFecha(LocalDate.of(2026, 8, 1));
+        request.setHoraInicio(LocalTime.of(12, 0));
+        request.setHoraFin(LocalTime.of(9, 0));
+
+        assertThatThrownBy(() -> service.registrarYPublicar(request))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(eventoRepository, citaRepository, pacienteRepository, rabbitTemplate);
     }
 }

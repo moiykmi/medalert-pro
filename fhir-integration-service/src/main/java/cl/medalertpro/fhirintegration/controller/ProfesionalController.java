@@ -41,12 +41,14 @@ public class ProfesionalController {
     @GetMapping
     public List<ProfesionalConCitasResponse> listar(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "HH:mm") LocalTime horaInicio,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "HH:mm") LocalTime horaFin,
             HttpServletRequest request) {
         authGuard.validar(request);
 
         LocalDate fechaConsulta = fecha != null ? fecha : LocalDate.now();
-        LocalDateTime desde = fechaConsulta.atStartOfDay();
-        LocalDateTime hasta = fechaConsulta.atTime(LocalTime.MAX);
+        LocalDateTime desde = horaInicio != null ? fechaConsulta.atTime(horaInicio) : fechaConsulta.atStartOfDay();
+        LocalDateTime hasta = horaFin != null ? fechaConsulta.atTime(horaFin) : fechaConsulta.atTime(LocalTime.MAX);
 
         List<ProfesionalSalud> profesionales = profesionalRepository.findAll();
         return profesionales.stream()
