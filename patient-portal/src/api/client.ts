@@ -193,6 +193,9 @@ export const api = {
   confirmarNotificacion: (id: number, token: string) =>
       request<Notificacion>(`/notificaciones/${id}/confirmar`, { method: 'POST' }, token),
 
+  reagendarCita: (id: number, nuevaFechaHora: string, token: string) =>
+      request<Cita>(`/citas/${id}/reagendar`, { method: 'POST', body: JSON.stringify({ nuevaFechaHora }) }, token),
+
   adminDashboardKpis: (adminToken: string) =>
       requestAdmin<AdminDashboardKpis>('/admin/dashboard/kpis', adminToken),
 

@@ -84,6 +84,9 @@ export function Portal({ sesion, onSalir }: PortalProps) {
   const [error, setError] = useState<string | null>(null);
   const [confirmandoId, setConfirmandoId] = useState<number | null>(null);
   const [mensajeEstado, setMensajeEstado] = useState<string | null>(null);
+  const [reagendandoId, setReagendandoId] = useState<number | null>(null);
+  const [nuevaFecha, setNuevaFecha] = useState<Record<number, string>>({});
+  const [enviandoReagendo, setEnviandoReagendo] = useState<number | null>(null);
 
   async function cargarDatos() {
     setCargando(true);
@@ -112,6 +115,26 @@ export function Portal({ sesion, onSalir }: PortalProps) {
   }, []);
 
   const avisos = useMemo(() => agruparPorEvento(notificaciones), [notificaciones]);
+
+  async function reagendar(citaId: number) {
+    const valor = nuevaFecha[citaId];
+    if (!valor) return;
+
+    setEnviandoReagendo(citaId);
+    setMensajeEstado(null);
+    try {
+      await api.reagendarCita(citaId, new Date(valor).toISOString(), sesion.token);
+      setMensajeEstado('Tu cita fue reagendada.');
+      setReagendandoId(null);
+      await cargarDatos();
+    } catch (err) {
+      setMensajeEstado(
+          err instanceof ApiError ? err.message : 'No pudimos reagendar tu cita. Intenta de nuevo.',
+      );
+    } finally {
+      setEnviandoReagendo(null);
+    }
+  }
 
   async function confirmar(id: number) {
     setConfirmandoId(id);
@@ -228,14 +251,46 @@ export function Portal({ sesion, onSalir }: PortalProps) {
 
           <div className="portal__lista">
             {citas.map((cita) => (
-                <Card key={cita.id} className="cita">
-                  <div>
-                    <p className="cita__fecha">{formatearFecha(cita.fechaHora)}</p>
-                    <p className="cita__meta">Cita N.º {cita.id}</p>
+                <Card key={cita.id} className="cita-card">
+                  <div className="cita">
+                    <div>
+                      <p className="cita__fecha">{formatearFecha(cita.fechaHora)}</p>
+                      <p className="cita__meta">Cita N.º {cita.id}</p>
+                    </div>
+                    <span className={`badge badge--${cita.estado.toLowerCase()}`}>
+                  {ESTADO_CITA_LABEL[cita.estado] ?? cita.estado}
+                </span>
                   </div>
-                  <span className={`badge badge--${cita.estado.toLowerCase()}`}>
-                {ESTADO_CITA_LABEL[cita.estado] ?? cita.estado}
-              </span>
+
+                  {cita.estado === 'CANCELADA' && reagendandoId !== cita.id && (
+                      <Button variant="secondary" onClick={() => setReagendandoId(cita.id)}>
+                        Reagendar
+                      </Button>
+                  )}
+
+                  {cita.estado === 'CANCELADA' && reagendandoId === cita.id && (
+                      <div className="cita__reagendar-form">
+                        <input
+                            type="datetime-local"
+                            className="cita__reagendar-input"
+                            value={nuevaFecha[cita.id] ?? ''}
+                            onChange={(e) =>
+                                setNuevaFecha((prev) => ({ ...prev, [cita.id]: e.target.value }))
+                            }
+                        />
+                        <div className="cita__reagendar-acciones">
+                          <Button
+                              onClick={() => reagendar(cita.id)}
+                              disabled={!nuevaFecha[cita.id] || enviandoReagendo === cita.id}
+                          >
+                            {enviandoReagendo === cita.id ? 'Reagendando…' : 'Confirmar nueva fecha'}
+                          </Button>
+                          <Button variant="ghost" onClick={() => setReagendandoId(null)}>
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                  )}
                 </Card>
             ))}
           </div>
