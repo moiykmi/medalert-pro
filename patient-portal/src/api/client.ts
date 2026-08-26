@@ -16,6 +16,23 @@ export interface Cita {
   estado: 'AGENDADA' | 'CANCELADA' | 'REAGENDADA' | 'ATENDIDA' | 'NO_ASISTIO';
 }
 
+export interface Paciente {
+  id: number;
+  rut: string;
+  nombre: string;
+  telefono: string | null;
+  email: string | null;
+  canalPreferido: 'SMS' | 'WHATSAPP' | 'EMAIL';
+  adultoMayor: boolean;
+  datosActualizadosEn: string | null;
+}
+
+export interface ActualizarDatosRequest {
+  telefono?: string;
+  email?: string;
+  canalPreferido?: 'SMS' | 'WHATSAPP' | 'EMAIL';
+}
+
 export interface Notificacion {
   id: number;
   eventoId: number;
@@ -195,6 +212,11 @@ export const api = {
 
   reagendarCita: (id: number, nuevaFechaHora: string, token: string) =>
       request<Cita>(`/citas/${id}/reagendar`, { method: 'POST', body: JSON.stringify({ nuevaFechaHora }) }, token),
+
+  miPerfil: (token: string) => request<Paciente>('/paciente/perfil', {}, token),
+
+  actualizarDatosContacto: (datos: ActualizarDatosRequest, token: string) =>
+      request<Paciente>('/paciente/datos-contacto', { method: 'PUT', body: JSON.stringify(datos) }, token),
 
   adminDashboardKpis: (adminToken: string) =>
       requestAdmin<AdminDashboardKpis>('/admin/dashboard/kpis', adminToken),

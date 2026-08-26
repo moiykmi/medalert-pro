@@ -116,6 +116,29 @@
   gap: 10px;
 }
 
+.datos-contacto {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.datos-contacto__fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.datos-contacto__label {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.datos-contacto__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .cita__fecha {
   font-family: var(--font-display);
   font-weight: 700;

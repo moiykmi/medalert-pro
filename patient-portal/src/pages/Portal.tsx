@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { api, ApiError, Cita, Notificacion, Sesion } from '../api/client';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { api, ApiError, Cita, Notificacion, Paciente, Sesion } from '../api/client';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { ChannelTrail } from '../components/ChannelTrail';
+import { TextField } from '../components/TextField';
 import './Portal.css';
 
 interface PortalProps {
@@ -88,16 +89,25 @@ export function Portal({ sesion, onSalir }: PortalProps) {
   const [nuevaFecha, setNuevaFecha] = useState<Record<number, string>>({});
   const [enviandoReagendo, setEnviandoReagendo] = useState<number | null>(null);
 
+  const [perfil, setPerfil] = useState<Paciente | null>(null);
+  const [editandoPerfil, setEditandoPerfil] = useState(false);
+  const [telefonoDraft, setTelefonoDraft] = useState('');
+  const [emailDraft, setEmailDraft] = useState('');
+  const [canalDraft, setCanalDraft] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+
   async function cargarDatos() {
     setCargando(true);
     setError(null);
     try {
-      const [citasResp, notifResp] = await Promise.all([
+      const [citasResp, notifResp, perfilResp] = await Promise.all([
         api.misCitas(sesion.token),
         api.misNotificaciones(sesion.token),
+        api.miPerfil(sesion.token),
       ]);
       setCitas(citasResp);
       setNotificaciones(notifResp);
+      setPerfil(perfilResp);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         onSalir();
@@ -115,6 +125,34 @@ export function Portal({ sesion, onSalir }: PortalProps) {
   }, []);
 
   const avisos = useMemo(() => agruparPorEvento(notificaciones), [notificaciones]);
+
+  function abrirEdicionPerfil() {
+    setTelefonoDraft(perfil?.telefono ?? '');
+    setEmailDraft(perfil?.email ?? '');
+    setCanalDraft(perfil?.canalPreferido ?? 'SMS');
+    setEditandoPerfil(true);
+  }
+
+  async function guardarPerfil(e: FormEvent) {
+    e.preventDefault();
+    setGuardandoPerfil(true);
+    setMensajeEstado(null);
+    try {
+      const actualizado = await api.actualizarDatosContacto(
+          { telefono: telefonoDraft.trim(), email: emailDraft.trim(), canalPreferido: canalDraft },
+          sesion.token,
+      );
+      setPerfil(actualizado);
+      setEditandoPerfil(false);
+      setMensajeEstado('Tus datos de contacto fueron actualizados.');
+    } catch (err) {
+      setMensajeEstado(
+          err instanceof ApiError ? err.message : 'No pudimos actualizar tus datos. Intenta de nuevo.',
+      );
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  }
 
   async function reagendar(citaId: number) {
     const valor = nuevaFecha[citaId];
@@ -294,6 +332,75 @@ export function Portal({ sesion, onSalir }: PortalProps) {
                 </Card>
             ))}
           </div>
+        </section>
+
+        <section aria-labelledby="datos-titulo">
+          <h2 id="datos-titulo" className="portal__seccion-titulo">
+            Mis datos de contacto
+          </h2>
+
+          {perfil && !editandoPerfil && (
+              <Card className="datos-contacto">
+                <div className="datos-contacto__fila">
+                  <span className="datos-contacto__label">Teléfono</span>
+                  <span>{perfil.telefono ?? 'Sin registrar'}</span>
+                </div>
+                <div className="datos-contacto__fila">
+                  <span className="datos-contacto__label">Correo</span>
+                  <span>{perfil.email ?? 'Sin registrar'}</span>
+                </div>
+                <div className="datos-contacto__fila">
+                  <span className="datos-contacto__label">Canal preferido</span>
+                  <span>{perfil.canalPreferido}</span>
+                </div>
+                <Button variant="secondary" onClick={abrirEdicionPerfil}>
+                  Actualizar datos
+                </Button>
+              </Card>
+          )}
+
+          {perfil && editandoPerfil && (
+              <Card className="datos-contacto">
+                <form onSubmit={guardarPerfil} className="datos-contacto__form">
+                  <TextField
+                      label="Teléfono"
+                      value={telefonoDraft}
+                      onChange={(e) => setTelefonoDraft(e.target.value)}
+                      placeholder="+56912345678"
+                      hint="Incluye el código de país, ej: +56912345678"
+                  />
+                  <TextField
+                      label="Correo"
+                      type="email"
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                  />
+                  <div className="field">
+                    <label htmlFor="canal-preferido" className="field__label">
+                      Canal preferido
+                    </label>
+                    <select
+                        id="canal-preferido"
+                        className="field__input"
+                        value={canalDraft}
+                        onChange={(e) => setCanalDraft(e.target.value as 'SMS' | 'WHATSAPP' | 'EMAIL')}
+                    >
+                      <option value="SMS">SMS</option>
+                      <option value="WHATSAPP">WhatsApp</option>
+                      <option value="EMAIL">Correo</option>
+                    </select>
+                  </div>
+                  <div className="cita__reagendar-acciones">
+                    <Button type="submit" disabled={guardandoPerfil}>
+                      {guardandoPerfil ? 'Guardando…' : 'Guardar cambios'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => setEditandoPerfil(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </form>
+              </Card>
+          )}
         </section>
       </div>
   );
