@@ -14,13 +14,12 @@ import {
   YAxis,
 } from 'recharts';
 import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Paciente, Profesional } from '../api/client';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
-import { TextField } from '../components/TextField';
 import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
 const POLLING_MS = 20_000;
+
+type Tab = 'dashboard' | 'agenda' | 'pacientes' | 'notificaciones';
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -52,14 +51,20 @@ function formatWeek(isoDate: string): string {
   return date.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' });
 }
 
-function pctColor(value: number, goal: number, inverse = false): string {
+function pctColorClass(value: number, goal: number, inverse = false): string {
   const ok = inverse ? value <= goal : value >= goal;
-  return ok ? 'kpi__value--ok' : 'kpi__value--warn';
+  return ok ? 'kv ok' : 'kv warn';
+}
+
+function iniciales(nombre: string): string {
+  const partes = nombre.trim().split(/\s+/);
+  return ((partes[0]?.[0] ?? '') + (partes[1]?.[0] ?? '')).toUpperCase();
 }
 
 export function AdminDashboard() {
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem(STORAGE_KEY) ?? '');
   const [draftToken, setDraftToken] = useState('');
+  const [tab, setTab] = useState<Tab>('dashboard');
   const [kpis, setKpis] = useState<AdminDashboardKpis | null>(null);
   const [eventos, setEventos] = useState<AdminDashboardEvent[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -214,318 +219,394 @@ export function AdminDashboard() {
 
   if (!adminToken) {
     return (
-      <div className="admin-dashboard">
-        <header className="admin-dashboard__header">
-          <div>
-            <p className="admin-dashboard__eyebrow">MedAlert Pro · Panel Administrativo</p>
-            <h1>Dashboard de KPIs</h1>
+      <div className="ma-login-wrap">
+        <div className="ma-login-card">
+          <div className="logo" style={{ marginBottom: 18, color: '#0F172A' }}>
+            <i className="ti ti-bell-ringing" style={{ color: '#0C447C' }} />
+            MedAlert Pro
+            <span className="logo-sub" style={{ color: '#64748B' }}>Panel Administrativo</span>
           </div>
-        </header>
-
-        <Card className="admin-dashboard__login-card">
-          <form onSubmit={ingresarAdminToken} className="admin-dashboard__login-form">
-            <label htmlFor="admin-token">Token administrativo (X-Admin-Token)</label>
+          <form onSubmit={ingresarAdminToken} className="ma-login-form">
+            <label htmlFor="admin-token" className="form-label">Token administrativo (X-Admin-Token)</label>
             <input
               id="admin-token"
               type="password"
+              className="form-input"
               value={draftToken}
               onChange={(e) => setDraftToken(e.target.value)}
               placeholder="Ingresa el token de administración"
               autoComplete="off"
               required
             />
-            <Button type="submit">Ingresar al dashboard</Button>
+            <button type="submit" className="btn-primary full">
+              <i className="ti ti-login" /> Ingresar al dashboard
+            </button>
           </form>
-          {error && (
-            <p className="admin-dashboard__error" role="alert">
-              {error}
-            </p>
-          )}
-        </Card>
+          {error && <p className="ma-error-text">{error}</p>}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="admin-dashboard">
-      <header className="admin-dashboard__header">
-        <div>
-          <p className="admin-dashboard__eyebrow">MedAlert Pro · Panel Administrativo</p>
-          <h1>Dashboard de KPIs</h1>
-          {kpis && (
-            <p className="admin-dashboard__meta">Actualizado: {formatDate(kpis.generadoEn)}</p>
-          )}
+    <div className="ma-app">
+      <div className="topbar">
+        <div className="logo">
+          <i className="ti ti-bell-ringing" />
+          MedAlert Pro
+          <span className="logo-sub">Consultorio Tomás Rojas Vergara · Los Lagos</span>
         </div>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            localStorage.removeItem(STORAGE_KEY);
-            setAdminToken('');
-          }}
+        <div className="nav">
+          <button className={`nb ${tab === 'dashboard' ? 'on' : ''}`} onClick={() => setTab('dashboard')}>
+            <i className="ti ti-layout-dashboard" />Dashboard
+          </button>
+          <button className={`nb ${tab === 'agenda' ? 'on' : ''}`} onClick={() => setTab('agenda')}>
+            <i className="ti ti-calendar-event" />Agenda
+          </button>
+          <button className={`nb ${tab === 'pacientes' ? 'on' : ''}`} onClick={() => setTab('pacientes')}>
+            <i className="ti ti-users" />Pacientes
+          </button>
+          <button className={`nb ${tab === 'notificaciones' ? 'on' : ''}`} onClick={() => setTab('notificaciones')}>
+            <i className="ti ti-send" />Notificaciones
+          </button>
+        </div>
+        <button
+            className="nb"
+            title="Cerrar acceso admin"
+            onClick={() => {
+              localStorage.removeItem(STORAGE_KEY);
+              setAdminToken('');
+            }}
         >
-          Cerrar acceso admin
-        </Button>
-      </header>
+          <i className="ti ti-logout" />
+        </button>
+        <div className="avatar">AD</div>
+      </div>
 
-      <Card className="admin-dashboard__cancelacion-card">
-        <h2 className="admin-dashboard__section-title">Registrar cancelación de cita</h2>
-        <p className="admin-dashboard__vacio">
-          Registra la ausencia de un profesional para disparar el aviso multicanal a los pacientes agendados ese día.
-        </p>
-        <form onSubmit={registrarCancelacion} className="admin-dashboard__cancelacion-form">
-          <TextField
-            label="Fecha de la agenda cancelada"
-            type="date"
-            value={fechaCancelacion}
-            onChange={(e) => setFechaCancelacion(e.target.value)}
-            required
-          />
-          <div className="field">
-            <label htmlFor="profesional-ausente" className="field__label">
-              Profesional ausente
-            </label>
-            <select
-                id="profesional-ausente"
-                className="field__input"
-                value={profesionalId}
-                onChange={(e) => setProfesionalId(e.target.value)}
-                required
-            >
-              <option value="" disabled>
-                {cargandoProfesionales ? 'Cargando…' : 'Seleccionar profesional...'}
-              </option>
-              {profesionales.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre} — {p.especialidad} ({p.citasAgendadas} citas)
-                  </option>
-              ))}
-            </select>
+      <div className="ma-content">
+        {error && (
+          <div className="card ma-error-card">
+            <p>{error}</p>
+            <button className="btn-sec" onClick={() => cargarDashboard(adminToken)}>
+              <i className="ti ti-refresh" /> Reintentar
+            </button>
           </div>
-          <TextField
-            label="Motivo"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Ej: Licencia médica"
-          />
-          <TextField
-            label="ID del usuario admin que registra (opcional)"
-            type="number"
-            min={1}
-            value={registradoPor}
-            onChange={(e) => setRegistradoPor(e.target.value)}
-          />
-          {profesionalSeleccionado && (
-              <p className="admin-dashboard__preview-aviso">
-                Se notificará a <strong>{profesionalSeleccionado.citasAgendadas}</strong> paciente
-                {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'} agendado
-                {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'} ese día.
-              </p>
-          )}
-          <Button type="submit" disabled={enviandoCancelacion || !profesionalId}>
-            {enviandoCancelacion ? 'Registrando…' : 'Registrar cancelación'}
-          </Button>
-        </form>
-        {mensajeCancelacion && <p className="admin-dashboard__exito" role="status">{mensajeCancelacion}</p>}
-        {errorCancelacion && <p className="admin-dashboard__error" role="alert">{errorCancelacion}</p>}
-      </Card>
+        )}
 
-      {error && (
-        <Card className="admin-dashboard__error-card" role="alert">
-          <p>{error}</p>
-          <Button variant="secondary" onClick={() => cargarDashboard(adminToken)}>
-            Reintentar
-          </Button>
-        </Card>
-      )}
+        {tab === 'dashboard' && (
+          <>
+            <div className="stitle"><i className="ti ti-layout-dashboard" style={{ color: '#1D4ED8' }} /> Dashboard de KPIs</div>
+            {kpis && <p className="ma-meta">Actualizado: {formatDate(kpis.generadoEn)}</p>}
 
-      {cargando && !kpis && <p className="admin-dashboard__vacio">Cargando dashboard…</p>}
+            {cargando && !kpis && <p className="ma-vacio">Cargando dashboard…</p>}
+            {!cargando && !kpis && !error && (
+              <div className="card ma-vacio-card"><p>No hay datos aún para mostrar.</p></div>
+            )}
 
-      {!cargando && !kpis && !error && (
-        <Card className="admin-dashboard__vacio-card">
-          <p>No hay datos aún para mostrar.</p>
-        </Card>
-      )}
-
-      {kpis && (
-        <>
-          <section className="admin-dashboard__kpis" aria-label="Indicadores clave">
-            <Card className="kpi">
-              <p>Tasa de entrega exitosa</p>
-              <h2 className={`kpi__value ${pctColor(kpis.deliveryRate.porcentajeExito, 95)}`}>
-                {kpis.deliveryRate.porcentajeExito.toFixed(2)}%
-              </h2>
-              <p>{kpis.deliveryRate.entregasExitosas} de {kpis.deliveryRate.totalNotificaciones} notificaciones</p>
-            </Card>
-
-            <Card className="kpi">
-              <p>Contacto efectivo (1er intento)</p>
-              <h2 className={`kpi__value ${pctColor(kpis.contactEffectiveness.porcentajePrimerIntento, 50)}`}>
-                {kpis.contactEffectiveness.porcentajePrimerIntento.toFixed(2)}%
-              </h2>
-              <p>Escalamiento: {kpis.contactEffectiveness.porcentajeTrasEscalamiento.toFixed(2)}%</p>
-            </Card>
-
-            <Card className="kpi">
-              <p>Tiempo total por evento</p>
-              <h2 className={`kpi__value ${pctColor(kpis.notificationTime.promedioMinutos, 5, true)}`}>
-                {kpis.notificationTime.promedioMinutos.toFixed(2)} min
-              </h2>
-              <p>Máximo observado: {kpis.notificationTime.maximoMinutos.toFixed(2)} min</p>
-            </Card>
-
-            <Card className="kpi">
-              <p>Reagendamientos por portal</p>
-              <h2 className={`kpi__value ${pctColor(kpis.portalReschedule.porcentajeReagendamiento, 30)}`}>
-                {kpis.portalReschedule.porcentajeReagendamiento.toFixed(2)}%
-              </h2>
-              <p>{kpis.portalReschedule.citasReagendadas} de {kpis.portalReschedule.totalCitasCanceladas} citas</p>
-            </Card>
-
-            <Card className="kpi">
-              <p>Pacientes con contacto actualizado</p>
-              <h2 className={`kpi__value ${pctColor(kpis.contactUpdate.porcentajeActualizados, 95)}`}>
-                {kpis.contactUpdate.porcentajeActualizados.toFixed(2)}%
-              </h2>
-              <p>{kpis.contactUpdate.pacientesActualizados} de {kpis.contactUpdate.totalPacientes} pacientes</p>
-            </Card>
-          </section>
-
-          <section className="admin-dashboard__charts" aria-label="Visualizaciones">
-            <Card className="chart-card">
-              <h3>Distribución por canal</h3>
-              {canalPie.length === 0 ? (
-                <p className="admin-dashboard__vacio">Sin notificaciones registradas.</p>
-              ) : (
-                <div className="chart-wrap">
-                  <ResponsiveContainer width="100%" height={260}>
-                    <PieChart>
-                      <Pie data={canalPie} dataKey="total" nameKey="canal" cx="50%" cy="50%" outerRadius={90} />
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+            {kpis && (
+              <>
+                <div className="kpis">
+                  <div className="kpi">
+                    <div className="kpi-icon" style={{ background: '#DBEAFE', color: '#1D4ED8' }}><i className="ti ti-send" /></div>
+                    <div className="kl">Tasa de entrega exitosa</div>
+                    <div className={pctColorClass(kpis.deliveryRate.porcentajeExito, 95)}>{kpis.deliveryRate.porcentajeExito.toFixed(2)}%</div>
+                    <div className="ks">{kpis.deliveryRate.entregasExitosas} de {kpis.deliveryRate.totalNotificaciones} notificaciones</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-icon" style={{ background: '#D1FAE5', color: '#065F46' }}><i className="ti ti-target-arrow" /></div>
+                    <div className="kl">Contacto efectivo (1er intento)</div>
+                    <div className={pctColorClass(kpis.contactEffectiveness.porcentajePrimerIntento, 50)}>{kpis.contactEffectiveness.porcentajePrimerIntento.toFixed(2)}%</div>
+                    <div className="ks">Escalamiento: {kpis.contactEffectiveness.porcentajeTrasEscalamiento.toFixed(2)}%</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-icon" style={{ background: '#FEF3C7', color: '#92400E' }}><i className="ti ti-clock" /></div>
+                    <div className="kl">Tiempo total por evento</div>
+                    <div className={pctColorClass(kpis.notificationTime.promedioMinutos, 5, true)}>{kpis.notificationTime.promedioMinutos.toFixed(2)} min</div>
+                    <div className="ks">Máximo observado: {kpis.notificationTime.maximoMinutos.toFixed(2)} min</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-icon" style={{ background: '#EDE9FE', color: '#5B21B6' }}><i className="ti ti-calendar-plus" /></div>
+                    <div className="kl">Reagendamientos por portal</div>
+                    <div className={pctColorClass(kpis.portalReschedule.porcentajeReagendamiento, 30)}>{kpis.portalReschedule.porcentajeReagendamiento.toFixed(2)}%</div>
+                    <div className="ks">{kpis.portalReschedule.citasReagendadas} de {kpis.portalReschedule.totalCitasCanceladas} citas</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-icon" style={{ background: '#FFE4E6', color: '#BE123C' }}><i className="ti ti-address-book" /></div>
+                    <div className="kl">Pacientes con contacto actualizado</div>
+                    <div className={pctColorClass(kpis.contactUpdate.porcentajeActualizados, 95)}>{kpis.contactUpdate.porcentajeActualizados.toFixed(2)}%</div>
+                    <div className="ks">{kpis.contactUpdate.pacientesActualizados} de {kpis.contactUpdate.totalPacientes} pacientes</div>
+                  </div>
                 </div>
-              )}
-            </Card>
 
-            <Card className="chart-card">
-              <h3>Estados por canal</h3>
-              {canalStacked.length === 0 ? (
-                <p className="admin-dashboard__vacio">Sin datos de estado por canal.</p>
-              ) : (
-                <div className="chart-wrap">
-                  <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={canalStacked}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="canal" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend formatter={(v) => ESTADO_LABEL[v as EstadoCanal] ?? v} />
-                      <Bar stackId="a" dataKey="confirmado" fill="#2F7A4D" />
-                      <Bar stackId="a" dataKey="pendiente" fill="#D98E2B" />
-                      <Bar stackId="a" dataKey="reintentando" fill="#AE3B34" />
-                      <Bar stackId="a" dataKey="sin_respuesta" fill="#7B7E83" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Card>
-
-            <Card className="chart-card">
-              <h3>Frecuencia semanal de cancelaciones</h3>
-              {kpis.weeklyCancellationHistory.length === 0 ? (
-                <p className="admin-dashboard__vacio">Sin eventos de cancelación aún.</p>
-              ) : (
-                <div className="chart-wrap">
-                  <ResponsiveContainer width="100%" height={260}>
-                    <LineChart
-                      data={kpis.weeklyCancellationHistory.map((p) => ({
-                        semana: formatWeek(p.semanaInicio),
-                        eventos: p.totalEventos,
-                      }))}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="semana" />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="eventos" stroke="#0B5E64" strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Card>
-          </section>
-
-          <section aria-labelledby="eventos-recientes">
-            <h2 id="eventos-recientes" className="admin-dashboard__section-title">Eventos recientes</h2>
-            {eventos.length === 0 ? (
-              <Card className="admin-dashboard__vacio-card">
-                <p>No hay eventos recientes.</p>
-              </Card>
-            ) : (
-              <div className="admin-dashboard__event-list">
-                {eventos.map((evento) => (
-                  <Card key={evento.eventoId} className="event-card">
-                    <div className="event-card__row">
-                      <p className="event-card__title">Evento #{evento.eventoId}</p>
-                      <p className="event-card__date">{formatDate(evento.fechaEvento)}</p>
+                <div className="two">
+                  <div>
+                    <div className="stitle" style={{ fontSize: 13 }}>Distribución por canal</div>
+                    <div className="card">
+                      {canalPie.length === 0 ? (
+                        <p className="ma-vacio">Sin notificaciones registradas.</p>
+                      ) : (
+                        <div className="chart-wrap">
+                          <ResponsiveContainer width="100%" height={240}>
+                            <PieChart>
+                              <Pie data={canalPie} dataKey="total" nameKey="canal" cx="50%" cy="50%" outerRadius={80} fill="#1D4ED8" />
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
                     </div>
-                    <p className="event-card__meta">Motivo: {evento.motivo ?? 'Sin motivo'}</p>
-                    <p className="event-card__meta">
-                      Pacientes notificados: {evento.pacientesNotificados} · Confirmados: {evento.notificacionesConfirmadas}
-                    </p>
-                    <p className="event-card__meta">
-                      Tiempo total: {evento.minutosTotalesNotificacion == null ? 'Sin datos' : `${evento.minutosTotalesNotificacion.toFixed(2)} min`}
-                    </p>
-                  </Card>
+
+                    <div className="stitle" style={{ fontSize: 13 }}>Estados por canal</div>
+                    <div className="card">
+                      {canalStacked.length === 0 ? (
+                        <p className="ma-vacio">Sin datos de estado por canal.</p>
+                      ) : (
+                        <div className="chart-wrap">
+                          <ResponsiveContainer width="100%" height={240}>
+                            <BarChart data={canalStacked}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="canal" />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend formatter={(v) => ESTADO_LABEL[v as EstadoCanal] ?? v} />
+                              <Bar stackId="a" dataKey="confirmado" fill="#10B981" />
+                              <Bar stackId="a" dataKey="pendiente" fill="#F59E0B" />
+                              <Bar stackId="a" dataKey="reintentando" fill="#EF4444" />
+                              <Bar stackId="a" dataKey="sin_respuesta" fill="#94A3B8" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="stitle" style={{ fontSize: 13 }}>Frecuencia semanal de cancelaciones</div>
+                    <div className="card">
+                      {kpis.weeklyCancellationHistory.length === 0 ? (
+                        <p className="ma-vacio">Sin eventos de cancelación aún.</p>
+                      ) : (
+                        <div className="chart-wrap">
+                          <ResponsiveContainer width="100%" height={240}>
+                            <LineChart
+                              data={kpis.weeklyCancellationHistory.map((p) => ({
+                                semana: formatWeek(p.semanaInicio),
+                                eventos: p.totalEventos,
+                              }))}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="semana" />
+                              <YAxis allowDecimals={false} />
+                              <Tooltip />
+                              <Line type="monotone" dataKey="eventos" stroke="#1D4ED8" strokeWidth={2} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="stitle" style={{ fontSize: 13 }}>Profesionales — hoy</div>
+                    <div className="card">
+                      {profesionales.length === 0 ? (
+                        <p className="ma-vacio">Sin profesionales registrados.</p>
+                      ) : (
+                        profesionales.map((p) => (
+                          <div key={p.id} className="stat-row">
+                            <div className="stat-icon" style={{ background: p.citasAgendadas > 0 ? '#FFE4E6' : '#D1FAE5', color: p.citasAgendadas > 0 ? '#BE123C' : '#065F46' }}>
+                              {iniciales(p.nombre)}
+                            </div>
+                            <div className="stat-name">{p.nombre}<br /><span style={{ color: '#94A3B8', fontSize: 11 }}>{p.especialidad}</span></div>
+                            <div className="stat-val">{p.citasAgendadas} citas</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {tab === 'agenda' && (
+          <>
+            <div className="stitle"><i className="ti ti-calendar-event" style={{ color: '#059669' }} /> Registrar ausencia médica</div>
+            <div className="two">
+              <div>
+                <div className="card">
+                  <div style={{ marginBottom: 14 }}>
+                    <label className="form-label">Fecha de la agenda cancelada</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={fechaCancelacion}
+                      onChange={(e) => setFechaCancelacion(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <label className="form-label">Profesional ausente</label>
+                    <select
+                        className="form-select"
+                        value={profesionalId}
+                        onChange={(e) => setProfesionalId(e.target.value)}
+                        required
+                    >
+                      <option value="" disabled>
+                        {cargandoProfesionales ? 'Cargando…' : 'Seleccionar profesional...'}
+                      </option>
+                      {profesionales.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nombre} — {p.especialidad} ({p.citasAgendadas} citas)
+                          </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <label className="form-label">Motivo</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={motivo}
+                      onChange={(e) => setMotivo(e.target.value)}
+                      placeholder="Ej: Licencia médica"
+                    />
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <label className="form-label">ID del usuario admin que registra (opcional)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="form-input"
+                      value={registradoPor}
+                      onChange={(e) => setRegistradoPor(e.target.value)}
+                    />
+                  </div>
+
+                  {profesionalSeleccionado && (
+                    <div className="warn-box" style={{ marginBottom: 16 }}>
+                      <i className="ti ti-alert-triangle" />
+                      <span>
+                        Se notificará a <strong>{profesionalSeleccionado.citasAgendadas}</strong> paciente
+                        {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'} agendado
+                        {profesionalSeleccionado.citasAgendadas === 1 ? '' : 's'} ese día. El sistema enviará las
+                        notificaciones de forma inmediata y automática.
+                      </span>
+                    </div>
+                  )}
+
+                  <form onSubmit={registrarCancelacion}>
+                    <button type="submit" className="btn-primary full" disabled={enviandoCancelacion || !profesionalId}>
+                      <i className="ti ti-send" />
+                      {enviandoCancelacion
+                          ? 'Registrando…'
+                          : `Activar notificaciones${profesionalSeleccionado ? ` — ${profesionalSeleccionado.citasAgendadas} pacientes` : ''}`}
+                    </button>
+                  </form>
+                </div>
+                {mensajeCancelacion && <p className="ma-exito-text">{mensajeCancelacion}</p>}
+                {errorCancelacion && <p className="ma-error-text">{errorCancelacion}</p>}
+              </div>
+
+              <div>
+                <div className="stitle" style={{ fontSize: 13 }}>Profesionales del día</div>
+                {profesionales.length === 0 && !cargandoProfesionales && (
+                  <div className="card-sm"><p className="ma-vacio">Sin profesionales registrados.</p></div>
+                )}
+                {profesionales.map((p) => (
+                  <div key={p.id} className="card-sm" style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 34, height: 34, borderRadius: '50%',
+                        background: p.citasAgendadas > 0 ? '#FFE4E6' : '#D1FAE5',
+                        color: p.citasAgendadas > 0 ? '#BE123C' : '#065F46',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 700, flexShrink: 0,
+                      }}>
+                        {iniciales(p.nombre)}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{p.nombre}</div>
+                        <div style={{ fontSize: 11, color: '#64748B' }}>{p.especialidad} · {p.citasAgendadas} citas</div>
+                      </div>
+                      <span className={`badge ${p.citasAgendadas > 0 ? 'danger' : 'done'}`}>
+                        <i className={`ti ${p.citasAgendadas > 0 ? 'ti-circle-x' : 'ti-check'}`} style={{ fontSize: 10 }} />
+                        {p.citasAgendadas > 0 ? 'Con citas hoy' : 'Sin citas'}
+                      </span>
+                    </div>
+                  </div>
                 ))}
               </div>
-            )}
-          </section>
+            </div>
+          </>
+        )}
 
-          <section aria-labelledby="pacientes-titulo">
-            <div className="admin-dashboard__pacientes-header">
-              <h2 id="pacientes-titulo" className="admin-dashboard__section-title">Pacientes</h2>
+        {tab === 'pacientes' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+              <div className="stitle" style={{ marginBottom: 0 }}><i className="ti ti-users" style={{ color: '#1D4ED8' }} /> Gestión de pacientes</div>
               <input
                   type="text"
-                  className="admin-dashboard__pacientes-buscar"
+                  className="form-input"
                   placeholder="Buscar por nombre o RUT..."
+                  style={{ width: 240, marginLeft: 'auto' }}
                   value={busquedaPaciente}
                   onChange={(e) => setBusquedaPaciente(e.target.value)}
               />
             </div>
 
-            {cargandoPacientes && <p className="admin-dashboard__vacio">Cargando pacientes…</p>}
+            {cargandoPacientes && <p className="ma-vacio">Cargando pacientes…</p>}
 
             {!cargandoPacientes && pacientesFiltrados.length === 0 && (
-                <Card className="admin-dashboard__vacio-card">
-                  <p>{pacientes.length === 0 ? 'No hay pacientes registrados.' : 'Sin resultados para tu búsqueda.'}</p>
-                </Card>
+              <div className="card ma-vacio-card">
+                <p>{pacientes.length === 0 ? 'No hay pacientes registrados.' : 'Sin resultados para tu búsqueda.'}</p>
+              </div>
             )}
 
-            {!cargandoPacientes && pacientesFiltrados.length > 0 && (
-                <div className="admin-dashboard__pacientes-lista">
-                  {pacientesFiltrados.map((p) => (
-                      <Card key={p.id} className="paciente-card">
-                        <div className="paciente-card__info">
-                          <p className="paciente-card__nombre">{p.nombre}</p>
-                          <p className="paciente-card__meta">
-                            RUT: {p.rut} · Tel: {p.telefono ?? 'sin registrar'}
-                          </p>
-                          <p className="paciente-card__meta">
-                            Canal preferido: {p.canalPreferido}
-                            {p.adultoMayor ? ' · Adulto mayor' : ''}
-                          </p>
-                        </div>
-                        <span className={`chip ${p.telefono && p.email ? 'chip--ok' : 'chip--warn'}`}>
-                          {p.telefono && p.email ? 'Datos OK' : 'Actualizar datos'}
-                        </span>
-                      </Card>
-                  ))}
+            {!cargandoPacientes && pacientesFiltrados.map((p) => (
+              <div key={p.id} className="pat-card">
+                <div className="pat-avatar" style={{ background: '#DBEAFE', color: '#1D4ED8' }}>{iniciales(p.nombre)}</div>
+                <div className="pat-info">
+                  <div className="pat-name">{p.nombre}</div>
+                  <div className="pat-rut">RUT: {p.rut} · Tel: {p.telefono ?? 'sin registrar'}</div>
+                  <div className="pat-tags">
+                    <span className="chip off">{p.canalPreferido}</span>
+                    {p.adultoMayor && <span className="chip off">Adulto mayor</span>}
+                  </div>
                 </div>
+                <span className={`chip ${p.telefono && p.email ? 'ok' : 'warn'}`}>
+                  {p.telefono && p.email ? 'Datos OK' : 'Actualizar'}
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+
+        {tab === 'notificaciones' && (
+          <>
+            <div className="stitle"><i className="ti ti-send" style={{ color: '#1D4ED8' }} /> Centro de notificaciones — eventos recientes</div>
+            {eventos.length === 0 ? (
+              <div className="card ma-vacio-card"><p>No hay eventos recientes.</p></div>
+            ) : (
+              eventos.map((evento) => (
+                <div key={evento.eventoId} className="card" style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                    <span style={{ fontFamily: 'inherit', fontWeight: 700, fontSize: 13 }}>Evento #{evento.eventoId}</span>
+                    <span style={{ color: '#94A3B8', fontSize: 12 }}>{formatDate(evento.fechaEvento)}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: '#64748B' }}>Motivo: {evento.motivo ?? 'Sin motivo'}</p>
+                  <p style={{ fontSize: 12, color: '#64748B' }}>
+                    Pacientes notificados: {evento.pacientesNotificados} · Confirmados: {evento.notificacionesConfirmadas}
+                  </p>
+                  <p style={{ fontSize: 12, color: '#64748B' }}>
+                    Tiempo total: {evento.minutosTotalesNotificacion == null ? 'Sin datos' : `${evento.minutosTotalesNotificacion.toFixed(2)} min`}
+                  </p>
+                </div>
+              ))
             )}
-          </section>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
