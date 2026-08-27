@@ -13,13 +13,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Configuracion, Paciente, Profesional, ReporteMensual } from '../api/client';
+import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Bitacora, Configuracion, Paciente, Profesional, ReporteMensual } from '../api/client';
 import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
 const POLLING_MS = 20_000;
 
-type Tab = 'dashboard' | 'agenda' | 'pacientes' | 'notificaciones' | 'reportes' | 'configuracion';
+type Tab = 'dashboard' | 'agenda' | 'pacientes' | 'notificaciones' | 'reportes' | 'configuracion' | 'bitacora';
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -85,6 +85,18 @@ function iniciales(nombre: string): string {
   return ((partes[0]?.[0] ?? '') + (partes[1]?.[0] ?? '')).toUpperCase();
 }
 
+const ESTILO_TIPO_BITACORA: Record<string, { bg: string; color: string; icono: string }> = {
+  EVENTO_REGISTRADO: { bg: '#FFE4E6', color: '#BE123C', icono: 'ti-calendar-x' },
+  NOTIFICACIONES_ENVIADAS: { bg: '#DBEAFE', color: '#1D4ED8', icono: 'ti-send' },
+  ESCALAMIENTO: { bg: '#FEF3C7', color: '#92400E', icono: 'ti-arrows-right' },
+  RECORDATORIO: { bg: '#D1FAE5', color: '#065F46', icono: 'ti-bell' },
+  REAGENDAMIENTO: { bg: '#EDE9FE', color: '#5B21B6', icono: 'ti-calendar-plus' },
+};
+
+function formatHora(iso: string): string {
+  return new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function AdminDashboard() {
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem(STORAGE_KEY) ?? '');
   const [draftToken, setDraftToken] = useState('');
@@ -128,6 +140,10 @@ export function AdminDashboard() {
   const [guardandoConfiguracion, setGuardandoConfiguracion] = useState(false);
   const [mensajeConfiguracion, setMensajeConfiguracion] = useState<string | null>(null);
   const [errorConfiguracion, setErrorConfiguracion] = useState<string | null>(null);
+
+  const [fechaBitacora, setFechaBitacora] = useState(hoyISO);
+  const [bitacora, setBitacora] = useState<Bitacora | null>(null);
+  const [cargandoBitacora, setCargandoBitacora] = useState(false);
 
   async function cargarDashboard(tokenActual: string) {
     setCargando(true);
@@ -225,6 +241,18 @@ export function AdminDashboard() {
     }
   }
 
+  async function cargarBitacora(tokenActual: string, fecha: string) {
+    setCargandoBitacora(true);
+    try {
+      const resp = await api.obtenerBitacora(tokenActual, fecha);
+      setBitacora(resp);
+    } catch {
+      setBitacora(null);
+    } finally {
+      setCargandoBitacora(false);
+    }
+  }
+
   async function cambiarToggle(campo: keyof Omit<Configuracion, 'actualizadoEn'>) {
     if (!configuracion) return;
     const nuevaConfig = { ...configuracion, [campo]: !configuracion[campo] };
@@ -303,6 +331,12 @@ export function AdminDashboard() {
     cargarConfiguracion(adminToken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, tab]);
+
+  useEffect(() => {
+    if (!adminToken || tab !== 'bitacora') return;
+    cargarBitacora(adminToken, fechaBitacora);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, tab, fechaBitacora]);
 
   const profesionalSeleccionado = useMemo(
       () => profesionales.find((p) => String(p.id) === profesionalId) ?? null,
@@ -415,6 +449,9 @@ export function AdminDashboard() {
           </button>
           <button className={`nb ${tab === 'reportes' ? 'on' : ''}`} onClick={() => setTab('reportes')}>
             <i className="ti ti-chart-bar" />Reportes
+          </button>
+          <button className={`nb ${tab === 'bitacora' ? 'on' : ''}`} onClick={() => setTab('bitacora')}>
+            <i className="ti ti-list-check" />Bitácora
           </button>
           <button className={`nb ${tab === 'configuracion' ? 'on' : ''}`} onClick={() => setTab('configuracion')}>
             <i className="ti ti-settings" />Configuración
@@ -1119,6 +1156,75 @@ export function AdminDashboard() {
                   <div className="info-box">
                     <i className="ti ti-info-circle" />
                     <span>Última actualización: {formatDate(configuracion.actualizadoEn)}. Los cambios se aplican de inmediato — no requieren reiniciar el sistema.</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'bitacora' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <div className="stitle" style={{ marginBottom: 0 }}>
+                <i className="ti ti-list-check" style={{ color: '#059669' }} /> Bitácora de eventos del sistema
+              </div>
+              <input
+                  type="date"
+                  className="form-input"
+                  style={{ width: 160, fontSize: 12 }}
+                  value={fechaBitacora}
+                  onChange={(e) => setFechaBitacora(e.target.value)}
+              />
+            </div>
+
+            {cargandoBitacora && !bitacora && <p className="ma-vacio">Cargando bitácora…</p>}
+            {!cargandoBitacora && !bitacora && (
+              <div className="card ma-vacio-card"><p>No pudimos cargar la bitácora.</p></div>
+            )}
+
+            {bitacora && (
+              <div className="two">
+                <div>
+                  <div className="stitle" style={{ fontSize: 13 }}>Timeline del día</div>
+                  <div className="card">
+                    {bitacora.entradas.length === 0 ? (
+                      <p className="ma-vacio">Sin eventos registrados este día.</p>
+                    ) : (
+                      <div className="timeline">
+                        {bitacora.entradas.map((entrada, i) => {
+                          const estilo = ESTILO_TIPO_BITACORA[entrada.tipo] ?? { bg: '#F1F5F9', color: '#64748B', icono: 'ti-point' };
+                          return (
+                            <div key={i} className="tl-item">
+                              <div className="tl-dot" style={{ background: estilo.bg, color: estilo.color }}>
+                                <i className={`ti ${estilo.icono}`} style={{ fontSize: 11 }} />
+                              </div>
+                              <div className="tl-time">{formatHora(entrada.fecha)}</div>
+                              <div className="tl-title">{entrada.titulo}</div>
+                              {entrada.detalle && <div className="tl-sub">{entrada.detalle}</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="stitle" style={{ fontSize: 13 }}>Errores del sistema</div>
+                  <div className="card">
+                    {bitacora.erroresHoy === 0 ? (
+                      <div style={{ textAlign: 'center', padding: 20, color: '#94A3B8' }}>
+                        <i className="ti ti-circle-check" style={{ fontSize: 32, color: '#10B981', display: 'block', marginBottom: 8 }} />
+                        <div style={{ fontSize: 13, fontWeight: 500, color: '#059669' }}>Sin errores críticos este día</div>
+                        <div style={{ fontSize: 12, marginTop: 4 }}>Todos los envíos se procesaron correctamente</div>
+                      </div>
+                    ) : (
+                      <div className="warn-box">
+                        <i className="ti ti-alert-triangle" />
+                        <span>{bitacora.erroresHoy} notificación(es) fallida(s) este día — revisa el Historial de avisos para más detalle.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

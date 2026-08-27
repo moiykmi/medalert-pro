@@ -147,6 +147,19 @@ export interface ReporteMensual {
   };
 }
 
+export interface BitacoraEntry {
+  fecha: string;
+  tipo: 'EVENTO_REGISTRADO' | 'NOTIFICACIONES_ENVIADAS' | 'ESCALAMIENTO' | 'RECORDATORIO' | 'REAGENDAMIENTO';
+  titulo: string;
+  detalle: string | null;
+}
+
+export interface Bitacora {
+  fecha: string;
+  entradas: BitacoraEntry[];
+  erroresHoy: number;
+}
+
 export interface Configuracion {
   canalSmsHabilitado: boolean;
   canalWhatsappHabilitado: boolean;
@@ -373,6 +386,9 @@ export const api = {
 
   actualizarConfiguracion: (adminToken: string, config: Omit<Configuracion, 'actualizadoEn'>) =>
       requestAdminPut<Configuracion>(ADMIN_BASE_URL, '/admin/configuracion', adminToken, config),
+
+  obtenerBitacora: (adminToken: string, fecha: string) =>
+      requestAdmin<Bitacora>(ADMIN_BASE_URL, `/admin/bitacora?fecha=${fecha}`, adminToken),
 };
 
 export { ApiError };
