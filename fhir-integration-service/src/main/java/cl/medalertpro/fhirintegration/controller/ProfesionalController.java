@@ -61,7 +61,8 @@ public class ProfesionalController {
                         p.getNombre(),
                         p.getEspecialidad(),
                         citaRepository.findByProfesionalIdAndEstadoAndFechaHoraBetween(
-                                p.getId(), "AGENDADA", desde, hasta).size()))
+                                p.getId(), "AGENDADA", desde, hasta).size(),
+                        p.getEmail()))
                 .toList();
     }
 

@@ -118,6 +118,7 @@ export interface Profesional {
   nombre: string;
   especialidad: string;
   citasAgendadas: number;
+  email: string | null;
 }
 
 export interface ReporteMensual {
@@ -268,6 +269,34 @@ async function requestFhir<T>(path: string, options: RequestInit = {}, token?: s
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
+async function requestAdminPut<T>(baseUrl: string, path: string, adminToken: string, body: unknown): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': adminToken,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let mensaje = `Error ${response.status}`;
+    try {
+      const cuerpo = await response.json();
+      mensaje = cuerpo?.message || cuerpo?.error || mensaje;
+    } catch {
+      // el cuerpo no era JSON, se deja el mensaje genérico
+    }
+    throw new ApiError(response.status, mensaje);
+  }
+
+  if (response.status === 200 && response.headers.get('content-length') === '0') {
+    return undefined as T;
+  }
+  const text = await response.text();
+  return text ? (JSON.parse(text) as T) : (undefined as T);
+}
+
 export const api = {
   solicitarOtp: (rut: string) =>
       request<void>('/auth/solicitar-otp', { method: 'POST', body: JSON.stringify({ rut }) }),
@@ -319,6 +348,9 @@ export const api = {
 
   medicoReportarAusencia: (datos: ReportarAusenciaRequest, token: string) =>
       requestFhir<EventoCancelacion>('/medico/ausencia', { method: 'POST', body: JSON.stringify(datos) }, token),
+
+  asignarCredencialesMedico: (adminToken: string, profesionalId: number, email: string, password: string) =>
+      requestAdminPut<void>(FHIR_BASE_URL, `/profesionales/${profesionalId}/credenciales`, adminToken, { email, password }),
 };
 
 export { ApiError };

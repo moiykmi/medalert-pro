@@ -106,6 +106,13 @@ export function AdminDashboard() {
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [cargandoProfesionales, setCargandoProfesionales] = useState(false);
 
+  const [configurandoAccesoId, setConfigurandoAccesoId] = useState<number | null>(null);
+  const [emailAcceso, setEmailAcceso] = useState('');
+  const [passwordAcceso, setPasswordAcceso] = useState('');
+  const [guardandoAcceso, setGuardandoAcceso] = useState(false);
+  const [mensajeAcceso, setMensajeAcceso] = useState<string | null>(null);
+  const [errorAcceso, setErrorAcceso] = useState<string | null>(null);
+
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [cargandoPacientes, setCargandoPacientes] = useState(false);
   const [busquedaPaciente, setBusquedaPaciente] = useState('');
@@ -146,6 +153,31 @@ export function AdminDashboard() {
       setProfesionales([]);
     } finally {
       setCargandoProfesionales(false);
+    }
+  }
+
+  function abrirFormularioAcceso(p: Profesional) {
+    setConfigurandoAccesoId(p.id);
+    setEmailAcceso(p.email ?? '');
+    setPasswordAcceso('');
+    setMensajeAcceso(null);
+    setErrorAcceso(null);
+  }
+
+  async function guardarAccesoMedico(e: FormEvent, profesionalId: number) {
+    e.preventDefault();
+    setGuardandoAcceso(true);
+    setMensajeAcceso(null);
+    setErrorAcceso(null);
+    try {
+      await api.asignarCredencialesMedico(adminToken, profesionalId, emailAcceso.trim(), passwordAcceso);
+      setMensajeAcceso('Acceso configurado. El profesional ya puede ingresar en /medico.');
+      setConfigurandoAccesoId(null);
+      cargarProfesionales(adminToken, fechaCancelacion, horaInicioCancelacion || undefined, horaFinCancelacion || undefined);
+    } catch (err) {
+      setErrorAcceso(err instanceof ApiError ? err.message : 'No pudimos guardar el acceso.');
+    } finally {
+      setGuardandoAcceso(false);
     }
   }
 
@@ -596,6 +628,7 @@ export function AdminDashboard() {
 
               <div>
                 <div className="stitle" style={{ fontSize: 13 }}>Profesionales del día</div>
+                {mensajeAcceso && <p className="ma-exito-text">{mensajeAcceso}</p>}
                 {profesionales.length === 0 && !cargandoProfesionales && (
                   <div className="card-sm"><p className="ma-vacio">Sin profesionales registrados.</p></div>
                 )}
@@ -620,6 +653,60 @@ export function AdminDashboard() {
                         {p.citasAgendadas > 0 ? 'Con citas hoy' : 'Sin citas'}
                       </span>
                     </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid #F1F5F9' }}>
+                      <span
+                          className={`chip ${p.email ? 'ok' : 'off'}`}
+                          style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                          title={p.email ?? undefined}
+                      >
+                        <i className={`ti ${p.email ? 'ti-lock' : 'ti-lock-open'}`} style={{ fontSize: 10, flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {p.email ? `Portal médico: ${p.email}` : 'Sin acceso al portal médico'}
+                        </span>
+                      </span>
+                      <button
+                          type="button"
+                          className="btn-sec"
+                          style={{ fontSize: 11, padding: '5px 10px' }}
+                          onClick={() => configurandoAccesoId === p.id ? setConfigurandoAccesoId(null) : abrirFormularioAcceso(p)}
+                      >
+                        {p.email ? 'Cambiar' : 'Configurar acceso'}
+                      </button>
+                    </div>
+
+                    {configurandoAccesoId === p.id && (
+                      <form onSubmit={(e) => guardarAccesoMedico(e, p.id)} style={{ marginTop: 10 }}>
+                        <label className="form-label">Email de acceso</label>
+                        <input
+                            type="email"
+                            className="form-input"
+                            style={{ marginBottom: 8 }}
+                            value={emailAcceso}
+                            onChange={(e) => setEmailAcceso(e.target.value)}
+                            required
+                        />
+                        <label className="form-label">Contraseña nueva (mín. 8 caracteres)</label>
+                        <input
+                            type="password"
+                            className="form-input"
+                            style={{ marginBottom: 10 }}
+                            value={passwordAcceso}
+                            onChange={(e) => setPasswordAcceso(e.target.value)}
+                            minLength={8}
+                            required
+                        />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="submit" className="btn-primary" style={{ fontSize: 12, flex: 1 }} disabled={guardandoAcceso}>
+                            {guardandoAcceso ? 'Guardando…' : 'Guardar acceso'}
+                          </button>
+                          <button type="button" className="btn-sec" style={{ fontSize: 12 }} onClick={() => setConfigurandoAccesoId(null)}>
+                            Cancelar
+                          </button>
+                        </div>
+                        {errorAcceso && <p className="ma-error-text" style={{ marginTop: 6 }}>{errorAcceso}</p>}
+                      </form>
+                    )}
                   </div>
                 ))}
               </div>
