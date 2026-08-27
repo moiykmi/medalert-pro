@@ -19,6 +19,12 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+    # Los 3 microservicios comparten una única base de datos y por lo tanto la
+    # misma tabla flyway_schema_history — cada uno solo trae en su classpath
+    # las migraciones de SU propio dominio, no las de los otros dos. Sin esto,
+    # Flyway falla al validar en cuanto aparece en el historial una versión
+    # aplicada por otro servicio que este no conoce localmente.
+    ignore-migration-patterns: "*:missing,*:future"
 
   data:
     redis:
