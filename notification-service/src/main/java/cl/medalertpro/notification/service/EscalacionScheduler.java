@@ -32,6 +32,7 @@ public class EscalacionScheduler {
     private final PacienteRepository pacienteRepository;
     private final EventoCancelacionRepository eventoRepository;
     private final NotificacionDispatchService dispatchService;
+    private final ConfiguracionService configuracionService;
 
     @Value("${medalert.escalacion.minutos-espera}")
     private int minutosEspera;
@@ -39,11 +40,13 @@ public class EscalacionScheduler {
     public EscalacionScheduler(NotificacionRepository notificacionRepository,
                                PacienteRepository pacienteRepository,
                                EventoCancelacionRepository eventoRepository,
-                               NotificacionDispatchService dispatchService) {
+                               NotificacionDispatchService dispatchService,
+                               ConfiguracionService configuracionService) {
         this.notificacionRepository = notificacionRepository;
         this.pacienteRepository = pacienteRepository;
         this.eventoRepository = eventoRepository;
         this.dispatchService = dispatchService;
+        this.configuracionService = configuracionService;
     }
 
     // Revisa cada 1 minuto. La ventana real de espera (60 min en producción) se
@@ -85,11 +88,12 @@ public class EscalacionScheduler {
 
         String siguienteCanal = ORDEN_CANALES.stream()
                 .filter(c -> !canalesYaUsados.contains(c))
+                .filter(configuracionService::isCanalHabilitado)
                 .findFirst()
                 .orElse(null);
 
         if (siguienteCanal == null) {
-            log.info("Paciente {} (evento {}) ya intentó todos los canales disponibles — no se escala más",
+            log.info("Paciente {} (evento {}) ya intentó todos los canales disponibles (o los restantes están deshabilitados) — no se escala más",
                     ultimaNotificacion.getPacienteId(), ultimaNotificacion.getEventoId());
             marcarSinRespuesta(ultimaNotificacion);
             return;

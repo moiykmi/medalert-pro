@@ -19,7 +19,9 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -40,11 +42,18 @@ class RecordatorioSchedulerTest {
     @Mock
     private NotificacionDispatchService dispatchService;
 
+    @Mock
+    private ConfiguracionService configuracionService;
+
     private RecordatorioScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new RecordatorioScheduler(citaRepository, pacienteRepository, notificacionRepository, dispatchService);
+        scheduler = new RecordatorioScheduler(citaRepository, pacienteRepository, notificacionRepository, dispatchService, configuracionService);
+        lenient().when(configuracionService.isRecordatorio48hHabilitado()).thenReturn(true);
+        lenient().when(configuracionService.isRecordatorio24hHabilitado()).thenReturn(true);
+        lenient().when(configuracionService.resolverCanalEnvio(anyString()))
+                .thenAnswer(inv -> Optional.of(inv.getArgument(0, String.class)));
     }
 
     private static Cita cita(Long id, Long pacienteId, LocalDateTime fechaHora) {
@@ -119,6 +128,36 @@ class RecordatorioSchedulerTest {
         when(citaRepository.findByEstadoAndFechaHoraBetween(eq("AGENDADA"),
                 eq(hoy.plusDays(1).atStartOfDay()), any())).thenReturn(List.of(citaHuerfana));
         when(pacienteRepository.findById(300L)).thenReturn(Optional.empty());
+
+        scheduler.enviarRecordatorios();
+
+        verifyNoInteractions(dispatchService);
+    }
+
+    @Test
+    void noProcesaElRecordatorio48hSiElAdminLoDeshabilito() {
+        LocalDate hoy = LocalDate.now();
+        when(configuracionService.isRecordatorio48hHabilitado()).thenReturn(false);
+        when(citaRepository.findByEstadoAndFechaHoraBetween(eq("AGENDADA"),
+                eq(hoy.plusDays(1).atStartOfDay()), any())).thenReturn(List.of());
+
+        scheduler.enviarRecordatorios();
+
+        verify(citaRepository, never()).findByEstadoAndFechaHoraBetween(eq("AGENDADA"), eq(hoy.plusDays(2).atStartOfDay()), any());
+        verifyNoInteractions(dispatchService);
+    }
+
+    @Test
+    void noEnviaNadaSiElAdminDeshabilitoLosTresCanales() {
+        LocalDate hoy = LocalDate.now();
+        Cita citaSinCanal = cita(40L, 400L, hoy.plusDays(1).atTime(9, 0));
+
+        when(citaRepository.findByEstadoAndFechaHoraBetween(eq("AGENDADA"),
+                eq(hoy.plusDays(2).atStartOfDay()), any())).thenReturn(List.of());
+        when(citaRepository.findByEstadoAndFechaHoraBetween(eq("AGENDADA"),
+                eq(hoy.plusDays(1).atStartOfDay()), any())).thenReturn(List.of(citaSinCanal));
+        when(pacienteRepository.findById(400L)).thenReturn(Optional.of(paciente(400L, "SMS")));
+        when(configuracionService.resolverCanalEnvio(anyString())).thenReturn(Optional.empty());
 
         scheduler.enviarRecordatorios();
 

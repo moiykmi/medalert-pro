@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -45,12 +46,16 @@ class EscalacionSchedulerTest {
     @Mock
     private NotificacionDispatchService dispatchService;
 
+    @Mock
+    private ConfiguracionService configuracionService;
+
     private EscalacionScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new EscalacionScheduler(notificacionRepository, pacienteRepository, eventoRepository, dispatchService);
+        scheduler = new EscalacionScheduler(notificacionRepository, pacienteRepository, eventoRepository, dispatchService, configuracionService);
         ReflectionTestUtils.setField(scheduler, "minutosEspera", 60);
+        lenient().when(configuracionService.isCanalHabilitado(anyString())).thenReturn(true);
     }
 
     private static Notificacion notificacion(Long id, Long eventoId, Long pacienteId, String canal, short intento, LocalDateTime enviadoEn) {
@@ -163,5 +168,50 @@ class EscalacionSchedulerTest {
         verify(dispatchService).enviarYRegistrar(eq(103L), eq(203L), anyLong(), eq("EMAIL"),
                 anyString(), anyString(), anyString(), eq((short) 3));
         verify(notificacionRepository, times(1)).findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(103L, 203L);
+    }
+
+    @Test
+    void saltaElSiguienteCanalSiElAdminLoDeshabilitoYEscalaAlSiguienteHabilitado() {
+        Notificacion stale = notificacion(8L, 104L, 204L, "SMS", (short) 1, LocalDateTime.now().minusMinutes(90));
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
+                .thenReturn(List.of(stale));
+        when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(104L, 204L))
+                .thenReturn(List.of(stale));
+        // WhatsApp (el siguiente canal natural tras SMS) está deshabilitado por el admin.
+        when(configuracionService.isCanalHabilitado("WHATSAPP")).thenReturn(false);
+        when(configuracionService.isCanalHabilitado("EMAIL")).thenReturn(true);
+
+        Paciente paciente = new Paciente();
+        paciente.setId(204L);
+        paciente.setNombre("Carla Fuentes");
+        paciente.setTelefono("+56944444444");
+        paciente.setEmail("carla@test.cl");
+        when(pacienteRepository.findById(204L)).thenReturn(Optional.of(paciente));
+
+        EventoCancelacion evento = new EventoCancelacion();
+        evento.setId(104L);
+        evento.setMotivo("motivo y");
+        when(eventoRepository.findById(104L)).thenReturn(Optional.of(evento));
+
+        scheduler.revisarYEscalar();
+
+        verify(dispatchService).enviarYRegistrar(eq(104L), eq(204L), anyLong(), eq("EMAIL"),
+                anyString(), anyString(), anyString(), eq((short) 2));
+    }
+
+    @Test
+    void marcaSinRespuestaSiTodosLosCanalesRestantesEstanDeshabilitados() {
+        Notificacion stale = notificacion(9L, 105L, 205L, "SMS", (short) 1, LocalDateTime.now().minusMinutes(90));
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
+                .thenReturn(List.of(stale));
+        when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(105L, 205L))
+                .thenReturn(List.of(stale));
+        when(configuracionService.isCanalHabilitado("WHATSAPP")).thenReturn(false);
+        when(configuracionService.isCanalHabilitado("EMAIL")).thenReturn(false);
+
+        scheduler.revisarYEscalar();
+
+        verifyNoInteractions(dispatchService);
+        verify(notificacionRepository).save(argThat(n -> "SIN_RESPUESTA".equals(n.getEstadoEnvio())));
     }
 }

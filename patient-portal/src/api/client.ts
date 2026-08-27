@@ -147,6 +147,15 @@ export interface ReporteMensual {
   };
 }
 
+export interface Configuracion {
+  canalSmsHabilitado: boolean;
+  canalWhatsappHabilitado: boolean;
+  canalEmailHabilitado: boolean;
+  recordatorio48hHabilitado: boolean;
+  recordatorio24hHabilitado: boolean;
+  actualizadoEn: string;
+}
+
 export interface MedicoSesion {
   token: string;
   profesionalId: number;
@@ -358,6 +367,12 @@ export const api = {
 
   asignarCredencialesMedico: (adminToken: string, profesionalId: number, email: string, password: string) =>
       requestAdminPut<void>(FHIR_BASE_URL, `/profesionales/${profesionalId}/credenciales`, adminToken, { email, password }),
+
+  obtenerConfiguracion: (adminToken: string) =>
+      requestAdmin<Configuracion>(ADMIN_BASE_URL, '/admin/configuracion', adminToken),
+
+  actualizarConfiguracion: (adminToken: string, config: Omit<Configuracion, 'actualizadoEn'>) =>
+      requestAdminPut<Configuracion>(ADMIN_BASE_URL, '/admin/configuracion', adminToken, config),
 };
 
 export { ApiError };

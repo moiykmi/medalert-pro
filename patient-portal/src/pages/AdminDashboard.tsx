@@ -13,13 +13,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Paciente, Profesional, ReporteMensual } from '../api/client';
+import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Configuracion, Paciente, Profesional, ReporteMensual } from '../api/client';
 import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
 const POLLING_MS = 20_000;
 
-type Tab = 'dashboard' | 'agenda' | 'pacientes' | 'notificaciones' | 'reportes';
+type Tab = 'dashboard' | 'agenda' | 'pacientes' | 'notificaciones' | 'reportes' | 'configuracion';
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -123,6 +123,12 @@ export function AdminDashboard() {
   const [reporte, setReporte] = useState<ReporteMensual | null>(null);
   const [cargandoReporte, setCargandoReporte] = useState(false);
 
+  const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
+  const [cargandoConfiguracion, setCargandoConfiguracion] = useState(false);
+  const [guardandoConfiguracion, setGuardandoConfiguracion] = useState(false);
+  const [mensajeConfiguracion, setMensajeConfiguracion] = useState<string | null>(null);
+  const [errorConfiguracion, setErrorConfiguracion] = useState<string | null>(null);
+
   async function cargarDashboard(tokenActual: string) {
     setCargando(true);
     setError(null);
@@ -207,6 +213,38 @@ export function AdminDashboard() {
     }
   }
 
+  async function cargarConfiguracion(tokenActual: string) {
+    setCargandoConfiguracion(true);
+    try {
+      const resp = await api.obtenerConfiguracion(tokenActual);
+      setConfiguracion(resp);
+    } catch {
+      setConfiguracion(null);
+    } finally {
+      setCargandoConfiguracion(false);
+    }
+  }
+
+  async function cambiarToggle(campo: keyof Omit<Configuracion, 'actualizadoEn'>) {
+    if (!configuracion) return;
+    const nuevaConfig = { ...configuracion, [campo]: !configuracion[campo] };
+    setConfiguracion(nuevaConfig);
+    setGuardandoConfiguracion(true);
+    setMensajeConfiguracion(null);
+    setErrorConfiguracion(null);
+    try {
+      const { actualizadoEn: _actualizadoEn, ...sinFecha } = nuevaConfig;
+      const guardada = await api.actualizarConfiguracion(adminToken, sinFecha);
+      setConfiguracion(guardada);
+      setMensajeConfiguracion('Cambios guardados.');
+    } catch (err) {
+      setConfiguracion(configuracion); // revertir si falló
+      setErrorConfiguracion(err instanceof ApiError ? err.message : 'No pudimos guardar el cambio.');
+    } finally {
+      setGuardandoConfiguracion(false);
+    }
+  }
+
   const rangoHorarioInvalido =
       horaInicioCancelacion !== '' && horaFinCancelacion !== '' && horaFinCancelacion <= horaInicioCancelacion;
 
@@ -259,6 +297,12 @@ export function AdminDashboard() {
     cargarReporte(adminToken, periodoReporte);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, tab, periodoReporte]);
+
+  useEffect(() => {
+    if (!adminToken || tab !== 'configuracion' || configuracion) return;
+    cargarConfiguracion(adminToken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, tab]);
 
   const profesionalSeleccionado = useMemo(
       () => profesionales.find((p) => String(p.id) === profesionalId) ?? null,
@@ -371,6 +415,9 @@ export function AdminDashboard() {
           </button>
           <button className={`nb ${tab === 'reportes' ? 'on' : ''}`} onClick={() => setTab('reportes')}>
             <i className="ti ti-chart-bar" />Reportes
+          </button>
+          <button className={`nb ${tab === 'configuracion' ? 'on' : ''}`} onClick={() => setTab('configuracion')}>
+            <i className="ti ti-settings" />Configuración
           </button>
         </div>
         <button
@@ -983,6 +1030,98 @@ export function AdminDashboard() {
                   </div>
                 </div>
               </>
+            )}
+          </>
+        )}
+
+        {tab === 'configuracion' && (
+          <>
+            <div className="stitle"><i className="ti ti-settings" style={{ color: '#0C447C' }} /> Configuración del sistema</div>
+
+            {cargandoConfiguracion && !configuracion && <p className="ma-vacio">Cargando configuración…</p>}
+            {!cargandoConfiguracion && !configuracion && (
+              <div className="card ma-vacio-card"><p>No pudimos cargar la configuración.</p></div>
+            )}
+
+            {mensajeConfiguracion && <p className="ma-exito-text">{mensajeConfiguracion}</p>}
+            {errorConfiguracion && <p className="ma-error-text">{errorConfiguracion}</p>}
+
+            {configuracion && (
+              <div className="two">
+                <div>
+                  <div className="stitle" style={{ fontSize: 13 }}>Canales de notificación</div>
+                  <div className="card" style={{ marginBottom: 14 }}>
+                    <div className="sw-row">
+                      <div className="sw-info">
+                        <div className="sw-label"><i className="ti ti-device-mobile" style={{ fontSize: 14, verticalAlign: -2, color: '#1D4ED8' }} /> SMS (Twilio)</div>
+                        <div className="sw-sub">Canal primario universal — sin internet</div>
+                      </div>
+                      <div
+                          className={`switch ${configuracion.canalSmsHabilitado ? 'on' : ''}`}
+                          onClick={() => !guardandoConfiguracion && cambiarToggle('canalSmsHabilitado')}
+                      />
+                    </div>
+                    <div className="sw-row">
+                      <div className="sw-info">
+                        <div className="sw-label"><i className="ti ti-brand-whatsapp" style={{ fontSize: 14, verticalAlign: -2, color: '#059669' }} /> WhatsApp Business</div>
+                        <div className="sw-sub">Canal secundario — requiere datos móviles</div>
+                      </div>
+                      <div
+                          className={`switch ${configuracion.canalWhatsappHabilitado ? 'on' : ''}`}
+                          onClick={() => !guardandoConfiguracion && cambiarToggle('canalWhatsappHabilitado')}
+                      />
+                    </div>
+                    <div className="sw-row">
+                      <div className="sw-info">
+                        <div className="sw-label"><i className="ti ti-mail" style={{ fontSize: 14, verticalAlign: -2, color: '#7C3AED' }} /> Email</div>
+                        <div className="sw-sub">Canal de respaldo — para pacientes con correo</div>
+                      </div>
+                      <div
+                          className={`switch ${configuracion.canalEmailHabilitado ? 'on' : ''}`}
+                          onClick={() => !guardandoConfiguracion && cambiarToggle('canalEmailHabilitado')}
+                      />
+                    </div>
+                  </div>
+
+                  {!configuracion.canalSmsHabilitado && !configuracion.canalWhatsappHabilitado && !configuracion.canalEmailHabilitado && (
+                    <div className="warn-box">
+                      <i className="ti ti-alert-triangle" />
+                      <span>Sin ningún canal habilitado, el sistema no podrá enviar ninguna notificación ni recordatorio.</span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="stitle" style={{ fontSize: 13 }}>Recordatorios automáticos</div>
+                  <div className="card" style={{ marginBottom: 14 }}>
+                    <div className="sw-row">
+                      <div className="sw-info">
+                        <div className="sw-label">Recordatorio 48 horas antes</div>
+                        <div className="sw-sub">Envío diario a las 09:00 hrs (hora Chile)</div>
+                      </div>
+                      <div
+                          className={`switch ${configuracion.recordatorio48hHabilitado ? 'on' : ''}`}
+                          onClick={() => !guardandoConfiguracion && cambiarToggle('recordatorio48hHabilitado')}
+                      />
+                    </div>
+                    <div className="sw-row">
+                      <div className="sw-info">
+                        <div className="sw-label">Recordatorio 24 horas antes</div>
+                        <div className="sw-sub">Envío diario a las 09:00 hrs (hora Chile)</div>
+                      </div>
+                      <div
+                          className={`switch ${configuracion.recordatorio24hHabilitado ? 'on' : ''}`}
+                          onClick={() => !guardandoConfiguracion && cambiarToggle('recordatorio24hHabilitado')}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="info-box">
+                    <i className="ti ti-info-circle" />
+                    <span>Última actualización: {formatDate(configuracion.actualizadoEn)}. Los cambios se aplican de inmediato — no requieren reiniciar el sistema.</span>
+                  </div>
+                </div>
+              </div>
             )}
           </>
         )}

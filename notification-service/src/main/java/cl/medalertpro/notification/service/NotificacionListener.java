@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 /**
  * HU03-05 + HU06: consume "cancelaciones.eventos" y envía la notificación inicial
  * por el canal_preferido de cada paciente (no los 3 canales a la vez). El
@@ -20,11 +22,14 @@ public class NotificacionListener {
 
     private final NotificacionDispatchService dispatchService;
     private final NotificacionRepository notificacionRepository;
+    private final ConfiguracionService configuracionService;
 
     public NotificacionListener(NotificacionDispatchService dispatchService,
-                                 NotificacionRepository notificacionRepository) {
+                                 NotificacionRepository notificacionRepository,
+                                 ConfiguracionService configuracionService) {
         this.dispatchService = dispatchService;
         this.notificacionRepository = notificacionRepository;
+        this.configuracionService = configuracionService;
     }
 
     @RabbitListener(queues = "${medalert.rabbitmq.queue}")
@@ -43,21 +48,17 @@ public class NotificacionListener {
                 continue;
             }
 
-            String texto = MensajeBuilder.construir(paciente.getNombre(), evento.getMotivo());
-            String canalInicial = normalizarCanal(paciente.getCanalPreferido());
+            Optional<String> canalInicial = configuracionService.resolverCanalEnvio(paciente.getCanalPreferido());
+            if (canalInicial.isEmpty()) {
+                log.warn("Evento {} paciente {} — el admin deshabilitó los 3 canales de notificación, no se envía nada",
+                        evento.getEventoId(), paciente.getPacienteId());
+                continue;
+            }
 
+            String texto = MensajeBuilder.construir(paciente.getNombre(), evento.getMotivo());
             dispatchService.enviarYRegistrar(
                     evento.getEventoId(), paciente.getPacienteId(), paciente.getCitaId(),
-                    canalInicial, paciente.getTelefono(), paciente.getEmail(), texto, (short) 1);
+                    canalInicial.get(), paciente.getTelefono(), paciente.getEmail(), texto, (short) 1);
         }
-    }
-
-    private String normalizarCanal(String canalPreferido) {
-        if (canalPreferido == null) return "SMS";
-        return switch (canalPreferido.toUpperCase()) {
-            case "WHATSAPP" -> "WHATSAPP";
-            case "EMAIL" -> "EMAIL";
-            default -> "SMS";
-        };
     }
 }
