@@ -117,6 +117,8 @@ export function AdminDashboard() {
   const [cargandoPacientes, setCargandoPacientes] = useState(false);
   const [busquedaPaciente, setBusquedaPaciente] = useState('');
 
+  const [filtroProfesionalHistorial, setFiltroProfesionalHistorial] = useState('');
+
   const [periodoReporte, setPeriodoReporte] = useState(mesActualISO);
   const [reporte, setReporte] = useState<ReporteMensual | null>(null);
   const [cargandoReporte, setCargandoReporte] = useState(false);
@@ -127,7 +129,7 @@ export function AdminDashboard() {
     try {
       const [kpisResp, eventosResp] = await Promise.all([
         api.adminDashboardKpis(tokenActual),
-        api.adminDashboardEventos(tokenActual, 20),
+        api.adminDashboardEventos(tokenActual, 100),
       ]);
       setKpis(kpisResp);
       setEventos(eventosResp);
@@ -271,6 +273,19 @@ export function AdminDashboard() {
     );
   }, [pacientes, busquedaPaciente]);
 
+  const profesionalesEnHistorial = useMemo(() => {
+    const mapa = new Map<number, string>();
+    for (const e of eventos) {
+      if (e.profesionalId != null && e.profesionalNombre) mapa.set(e.profesionalId, e.profesionalNombre);
+    }
+    return Array.from(mapa.entries()).map(([id, nombre]) => ({ id, nombre }));
+  }, [eventos]);
+
+  const eventosFiltrados = useMemo(() => {
+    if (!filtroProfesionalHistorial) return eventos;
+    return eventos.filter((e) => String(e.profesionalId) === filtroProfesionalHistorial);
+  }, [eventos, filtroProfesionalHistorial]);
+
   const canalPie = useMemo(() => {
     if (!kpis) return [];
     const totals = new Map<string, number>();
@@ -352,7 +367,7 @@ export function AdminDashboard() {
             <i className="ti ti-users" />Pacientes
           </button>
           <button className={`nb ${tab === 'notificaciones' ? 'on' : ''}`} onClick={() => setTab('notificaciones')}>
-            <i className="ti ti-send" />Notificaciones
+            <i className="ti ti-history" />Historial
           </button>
           <button className={`nb ${tab === 'reportes' ? 'on' : ''}`} onClick={() => setTab('reportes')}>
             <i className="ti ti-chart-bar" />Reportes
@@ -757,25 +772,90 @@ export function AdminDashboard() {
 
         {tab === 'notificaciones' && (
           <>
-            <div className="stitle"><i className="ti ti-send" style={{ color: '#1D4ED8' }} /> Centro de notificaciones — eventos recientes</div>
-            {eventos.length === 0 ? (
-              <div className="card ma-vacio-card"><p>No hay eventos recientes.</p></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <div className="stitle" style={{ marginBottom: 0 }}>
+                <i className="ti ti-history" style={{ color: '#7C3AED' }} /> Historial de avisos de ausencia
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select
+                    className="form-select"
+                    style={{ width: 200, fontSize: 12 }}
+                    value={filtroProfesionalHistorial}
+                    onChange={(e) => setFiltroProfesionalHistorial(e.target.value)}
+                >
+                  <option value="">Todos los profesionales</option>
+                  {profesionalesEnHistorial.map((p) => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+                <button className="btn-sec" style={{ fontSize: 12 }} onClick={() => window.print()}>
+                  <i className="ti ti-download" style={{ fontSize: 14 }} /> Exportar
+                </button>
+              </div>
+            </div>
+
+            {eventosFiltrados.length === 0 ? (
+              <div className="card ma-vacio-card"><p>No hay avisos registrados.</p></div>
             ) : (
-              eventos.map((evento) => (
-                <div key={evento.eventoId} className="card" style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                    <span style={{ fontFamily: 'inherit', fontWeight: 700, fontSize: 13 }}>Evento #{evento.eventoId}</span>
-                    <span style={{ color: '#94A3B8', fontSize: 12 }}>{formatDate(evento.fechaEvento)}</span>
-                  </div>
-                  <p style={{ fontSize: 12, color: '#64748B' }}>Motivo: {evento.motivo ?? 'Sin motivo'}</p>
-                  <p style={{ fontSize: 12, color: '#64748B' }}>
-                    Pacientes notificados: {evento.pacientesNotificados} · Confirmados: {evento.notificacionesConfirmadas}
-                  </p>
-                  <p style={{ fontSize: 12, color: '#64748B' }}>
-                    Tiempo total: {evento.minutosTotalesNotificacion == null ? 'Sin datos' : `${evento.minutosTotalesNotificacion.toFixed(2)} min`}
-                  </p>
-                </div>
-              ))
+              <div className="card" style={{ overflowX: 'auto' }}>
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Profesional</th>
+                      <th>Motivo</th>
+                      <th>Registrado por</th>
+                      <th>Canal aviso</th>
+                      <th>Pacientes</th>
+                      <th>Contactados</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {eventosFiltrados.map((evento) => {
+                      const pct = evento.pacientesNotificados > 0
+                          ? ((evento.notificacionesConfirmadas / evento.pacientesNotificados) * 100).toFixed(1)
+                          : null;
+                      return (
+                        <tr key={evento.eventoId}>
+                          <td>
+                            <strong>{formatDate(evento.fechaEvento).split(',')[0]}</strong>
+                            <div style={{ fontSize: 11, color: '#94A3B8' }}>{formatDate(evento.fechaEvento)}</div>
+                          </td>
+                          <td>
+                            {evento.profesionalNombre ?? '—'}
+                            {evento.profesionalEspecialidad && (
+                                <div style={{ fontSize: 11, color: '#94A3B8' }}>{evento.profesionalEspecialidad}</div>
+                            )}
+                          </td>
+                          <td><span className="chip off">{evento.motivo ?? 'Sin motivo'}</span></td>
+                          <td style={{ fontSize: 12 }}>{evento.registradoPor != null ? `Usuario #${evento.registradoPor}` : '—'}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              {evento.canales.length === 0 && <span style={{ color: '#94A3B8', fontSize: 11 }}>—</span>}
+                              {evento.canales.map((c) => (
+                                  <span key={c} className="chip ok" style={{ fontSize: 10 }}>
+                                    {c === 'WHATSAPP' ? 'WA' : c === 'EMAIL' ? 'Email' : 'SMS'}
+                                  </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td><strong>{evento.pacientesNotificados}</strong></td>
+                          <td>
+                            <strong style={{ color: '#059669' }}>{evento.notificacionesConfirmadas}</strong>
+                            {pct && <div style={{ fontSize: 11, color: '#94A3B8' }}>{pct}%</div>}
+                          </td>
+                          <td>
+                            <span className={`badge ${evento.estado === 'COMPLETADO' ? 'done' : 'act'}`}>
+                              {evento.estado === 'COMPLETADO' ? 'Completado' : 'En curso'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </>
         )}

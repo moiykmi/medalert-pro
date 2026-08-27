@@ -90,6 +90,12 @@ export interface AdminDashboardEvent {
   eventoId: number;
   fechaEvento: string;
   motivo: string | null;
+  estado: string;
+  profesionalId: number | null;
+  profesionalNombre: string | null;
+  profesionalEspecialidad: string | null;
+  registradoPor: number | null;
+  canales: string[];
   pacientesNotificados: number;
   notificacionesConfirmadas: number;
   minutosTotalesNotificacion: number | null;

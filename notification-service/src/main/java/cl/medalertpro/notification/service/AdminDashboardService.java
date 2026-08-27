@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -375,13 +376,20 @@ public class AdminDashboardService {
                 SELECT e.id AS evento_id,
                        e.fecha_evento,
                        e.motivo,
+                       e.estado,
+                       e.profesional_id,
+                       prof.nombre AS profesional_nombre,
+                       prof.especialidad AS profesional_especialidad,
+                       e.registrado_por,
                        COUNT(DISTINCT n.paciente_id) AS pacientes_notificados,
                        COUNT(DISTINCT CASE WHEN n.estado_envio = 'CONFIRMADO' THEN n.paciente_id END) AS notificaciones_confirmadas,
                        EXTRACT(EPOCH FROM (MAX(COALESCE(n.confirmado_en, n.enviado_en, n.created_at)) - e.fecha_evento)) / 60.0 AS minutos_totales_notificacion,
-                       MAX(COALESCE(n.confirmado_en, n.enviado_en, n.created_at)) AS ultimo_hito
+                       MAX(COALESCE(n.confirmado_en, n.enviado_en, n.created_at)) AS ultimo_hito,
+                       ARRAY_AGG(DISTINCT n.canal) FILTER (WHERE n.canal IS NOT NULL) AS canales
                 FROM evento_cancelacion e
                 LEFT JOIN notificacion n ON n.evento_id = e.id
-                GROUP BY e.id, e.fecha_evento, e.motivo
+                LEFT JOIN profesional_salud prof ON prof.id = e.profesional_id
+                GROUP BY e.id, e.fecha_evento, e.motivo, e.estado, e.profesional_id, prof.nombre, prof.especialidad, e.registrado_por
                 ORDER BY e.fecha_evento DESC
                 LIMIT :limite
                 """;
@@ -390,11 +398,22 @@ public class AdminDashboardService {
             dto.setEventoId(rs.getLong("evento_id"));
             dto.setFechaEvento(rs.getObject("fecha_evento", LocalDateTime.class));
             dto.setMotivo(rs.getString("motivo"));
+            dto.setEstado(rs.getString("estado"));
+            dto.setProfesionalId(rs.getObject("profesional_id", Long.class));
+            dto.setProfesionalNombre(rs.getString("profesional_nombre"));
+            dto.setProfesionalEspecialidad(rs.getString("profesional_especialidad"));
+            dto.setRegistradoPor(rs.getObject("registrado_por", Long.class));
             dto.setPacientesNotificados(rs.getLong("pacientes_notificados"));
             dto.setNotificacionesConfirmadas(rs.getLong("notificaciones_confirmadas"));
             double minutos = rs.getDouble("minutos_totales_notificacion");
             dto.setMinutosTotalesNotificacion(rs.wasNull() ? null : redondear2(minutos));
             dto.setUltimoHito(rs.getObject("ultimo_hito", LocalDateTime.class));
+            java.sql.Array canalesArray = rs.getArray("canales");
+            if (canalesArray != null) {
+                dto.setCanales(Arrays.asList((String[]) canalesArray.getArray()));
+            } else {
+                dto.setCanales(List.of());
+            }
             return dto;
         });
     }

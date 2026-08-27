@@ -100,6 +100,18 @@
 }
 .ma-app .badge.done { background: #D1FAE5; color: #065F46; }
 .ma-app .badge.danger { background: #FFE4E6; color: #BE123C; }
+.ma-app .badge.act { background: #DBEAFE; color: #1D4ED8; }
+
+/* TABLA (Historial de avisos) */
+.ma-app .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ma-app .tbl th {
+  background: #F8FAFC; padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600;
+  color: #64748B; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid #E2E8F0;
+  white-space: nowrap;
+}
+.ma-app .tbl td { padding: 9px 12px; border-bottom: 1px solid #F1F5F9; color: #1E293B; vertical-align: middle; }
+.ma-app .tbl tr:last-child td { border-bottom: none; }
+.ma-app .tbl tr:hover td { background: #F8FAFC; }
 
 /* KPI CARDS */
 .ma-app .kpis {

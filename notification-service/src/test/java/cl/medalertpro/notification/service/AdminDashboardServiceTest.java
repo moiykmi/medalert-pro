@@ -139,10 +139,16 @@ class AdminDashboardServiceTest {
                     data.put("evento_id", 55L);
                     data.put("fecha_evento", LocalDateTime.of(2026, 8, 1, 10, 0));
                     data.put("motivo", "corte de luz");
+                    data.put("estado", "COMPLETADO");
+                    data.put("profesional_id", 7L);
+                    data.put("profesional_nombre", "Dra. Fuentes");
+                    data.put("profesional_especialidad", "Medicina General");
+                    data.put("registrado_por", 1L);
                     data.put("pacientes_notificados", 3L);
                     data.put("notificaciones_confirmadas", 2L);
                     data.put("minutos_totales_notificacion", 15.5);
                     data.put("ultimo_hito", LocalDateTime.of(2026, 8, 1, 10, 20));
+                    data.put("canales", new String[] { "SMS", "WHATSAPP" });
                     return List.of(mapper.mapRow(fakeResultSet(data), 1));
                 });
 
@@ -152,9 +158,38 @@ class AdminDashboardServiceTest {
         AdminDashboardEventDto dto = eventos.get(0);
         assertThat(dto.getEventoId()).isEqualTo(55L);
         assertThat(dto.getMotivo()).isEqualTo("corte de luz");
+        assertThat(dto.getEstado()).isEqualTo("COMPLETADO");
+        assertThat(dto.getProfesionalId()).isEqualTo(7L);
+        assertThat(dto.getProfesionalNombre()).isEqualTo("Dra. Fuentes");
+        assertThat(dto.getProfesionalEspecialidad()).isEqualTo("Medicina General");
+        assertThat(dto.getRegistradoPor()).isEqualTo(1L);
         assertThat(dto.getPacientesNotificados()).isEqualTo(3L);
         assertThat(dto.getNotificacionesConfirmadas()).isEqualTo(2L);
         assertThat(dto.getMinutosTotalesNotificacion()).isEqualTo(15.5);
+        assertThat(dto.getCanales()).containsExactly("SMS", "WHATSAPP");
+    }
+
+    @Test
+    void eventosRecientesSinProfesionalAsociadoDejaCamposEnNull() {
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), ArgumentMatchersHelper.<Object>rowMapper()))
+                .thenAnswer(invocation -> {
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("evento_id", 56L);
+                    data.put("fecha_evento", LocalDateTime.of(2026, 8, 2, 9, 0));
+                    data.put("motivo", "licencia");
+                    data.put("estado", "PROCESANDO");
+                    data.put("pacientes_notificados", 0L);
+                    data.put("notificaciones_confirmadas", 0L);
+                    return List.of(mapper.mapRow(fakeResultSet(data), 1));
+                });
+
+        List<AdminDashboardEventDto> eventos = service.obtenerEventosRecientes(500);
+
+        AdminDashboardEventDto dto = eventos.get(0);
+        assertThat(dto.getProfesionalId()).isNull();
+        assertThat(dto.getRegistradoPor()).isNull();
+        assertThat(dto.getCanales()).isEmpty();
     }
 
     @Test
@@ -278,6 +313,13 @@ class AdminDashboardServiceTest {
         });
         lenient().when(rs.getObject(anyString(), any(Class.class))).thenAnswer(inv ->
                 data.get(inv.getArgument(0, String.class)));
+        lenient().when(rs.getArray(anyString())).thenAnswer(inv -> {
+            Object v = data.get(inv.getArgument(0, String.class));
+            if (v == null) return null;
+            java.sql.Array array = mock(java.sql.Array.class);
+            lenient().when(array.getArray()).thenReturn(v);
+            return array;
+        });
         lenient().when(rs.wasNull()).thenReturn(false);
         return rs;
     }
