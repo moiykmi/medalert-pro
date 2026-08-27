@@ -17,6 +17,9 @@ import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Bitacora, Confi
 import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
+const STORAGE_KEY_ROL = 'medalert_admin_rol';
+const ROL_SUPERUSER = 'SUPERUSER';
+const ROLES_CON_REPORTES = [ROL_SUPERUSER, 'ADMIN'];
 const POLLING_MS = 20_000;
 
 type Tab = 'dashboard' | 'agenda' | 'pacientes' | 'notificaciones' | 'reportes' | 'configuracion' | 'bitacora';
@@ -99,7 +102,12 @@ function formatHora(iso: string): string {
 
 export function AdminDashboard() {
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem(STORAGE_KEY) ?? '');
+  const [rol, setRol] = useState(() => localStorage.getItem(STORAGE_KEY_ROL) ?? ROL_SUPERUSER);
   const [draftToken, setDraftToken] = useState('');
+  const [modoLogin, setModoLogin] = useState<'token' | 'individual'>('token');
+  const [emailLogin, setEmailLogin] = useState('');
+  const [passwordLogin, setPasswordLogin] = useState('');
+  const [ingresandoLogin, setIngresandoLogin] = useState(false);
   const [tab, setTab] = useState<Tab>('dashboard');
   const [kpis, setKpis] = useState<AdminDashboardKpis | null>(null);
   const [eventos, setEventos] = useState<AdminDashboardEvent[]>([]);
@@ -159,6 +167,7 @@ export function AdminDashboard() {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         setAdminToken('');
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_KEY_ROL);
         setError('Token administrativo inválido o ausente.');
         return;
       }
@@ -391,9 +400,37 @@ export function AdminDashboard() {
     e.preventDefault();
     if (!draftToken.trim()) return;
     localStorage.setItem(STORAGE_KEY, draftToken.trim());
+    localStorage.setItem(STORAGE_KEY_ROL, ROL_SUPERUSER);
+    setRol(ROL_SUPERUSER);
     setAdminToken(draftToken.trim());
     setDraftToken('');
   }
+
+  async function ingresarLoginIndividual(e: FormEvent) {
+    e.preventDefault();
+    if (!emailLogin.trim() || !passwordLogin) return;
+    setIngresandoLogin(true);
+    setError(null);
+    try {
+      const sesion = await api.adminLogin(emailLogin.trim(), passwordLogin);
+      localStorage.setItem(STORAGE_KEY, sesion.token);
+      localStorage.setItem(STORAGE_KEY_ROL, sesion.rol);
+      setRol(sesion.rol);
+      setAdminToken(sesion.token);
+      setEmailLogin('');
+      setPasswordLogin('');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No pudimos iniciar sesión.');
+    } finally {
+      setIngresandoLogin(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab === 'reportes' && !ROLES_CON_REPORTES.includes(rol)) {
+      setTab('dashboard');
+    }
+  }, [tab, rol]);
 
   if (!adminToken) {
     return (
@@ -404,22 +441,69 @@ export function AdminDashboard() {
             MedAlert Pro
             <span className="logo-sub" style={{ color: '#64748B' }}>Panel Administrativo</span>
           </div>
-          <form onSubmit={ingresarAdminToken} className="ma-login-form">
-            <label htmlFor="admin-token" className="form-label">Token administrativo (X-Admin-Token)</label>
-            <input
-              id="admin-token"
-              type="password"
-              className="form-input"
-              value={draftToken}
-              onChange={(e) => setDraftToken(e.target.value)}
-              placeholder="Ingresa el token de administración"
-              autoComplete="off"
-              required
-            />
-            <button type="submit" className="btn-primary full">
-              <i className="ti ti-login" /> Ingresar al dashboard
+          <div className="ma-login-tabs" style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <button
+                type="button"
+                className={`btn-sec${modoLogin === 'token' ? ' on' : ''}`}
+                onClick={() => setModoLogin('token')}
+            >
+              Token administrativo
             </button>
-          </form>
+            <button
+                type="button"
+                className={`btn-sec${modoLogin === 'individual' ? ' on' : ''}`}
+                onClick={() => setModoLogin('individual')}
+            >
+              Usuario y contraseña
+            </button>
+          </div>
+
+          {modoLogin === 'token' ? (
+            <form onSubmit={ingresarAdminToken} className="ma-login-form">
+              <label htmlFor="admin-token" className="form-label">Token administrativo (X-Admin-Token)</label>
+              <input
+                id="admin-token"
+                type="password"
+                className="form-input"
+                value={draftToken}
+                onChange={(e) => setDraftToken(e.target.value)}
+                placeholder="Ingresa el token de administración"
+                autoComplete="off"
+                required
+              />
+              <button type="submit" className="btn-primary full">
+                <i className="ti ti-login" /> Ingresar al dashboard
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={ingresarLoginIndividual} className="ma-login-form">
+              <label htmlFor="admin-email" className="form-label">Correo</label>
+              <input
+                id="admin-email"
+                type="email"
+                className="form-input"
+                value={emailLogin}
+                onChange={(e) => setEmailLogin(e.target.value)}
+                placeholder="nombre@clinica.cl"
+                autoComplete="username"
+                required
+              />
+              <label htmlFor="admin-password" className="form-label">Contraseña</label>
+              <input
+                id="admin-password"
+                type="password"
+                className="form-input"
+                value={passwordLogin}
+                onChange={(e) => setPasswordLogin(e.target.value)}
+                placeholder="Contraseña"
+                autoComplete="current-password"
+                required
+              />
+              <button type="submit" className="btn-primary full" disabled={ingresandoLogin}>
+                <i className="ti ti-login" /> {ingresandoLogin ? 'Ingresando…' : 'Ingresar al dashboard'}
+              </button>
+            </form>
+          )}
           {error && <p className="ma-error-text">{error}</p>}
         </div>
       </div>
@@ -447,9 +531,11 @@ export function AdminDashboard() {
           <button className={`nb ${tab === 'notificaciones' ? 'on' : ''}`} onClick={() => setTab('notificaciones')}>
             <i className="ti ti-history" />Historial
           </button>
-          <button className={`nb ${tab === 'reportes' ? 'on' : ''}`} onClick={() => setTab('reportes')}>
-            <i className="ti ti-chart-bar" />Reportes
-          </button>
+          {ROLES_CON_REPORTES.includes(rol) && (
+            <button className={`nb ${tab === 'reportes' ? 'on' : ''}`} onClick={() => setTab('reportes')}>
+              <i className="ti ti-chart-bar" />Reportes
+            </button>
+          )}
           <button className={`nb ${tab === 'bitacora' ? 'on' : ''}`} onClick={() => setTab('bitacora')}>
             <i className="ti ti-list-check" />Bitácora
           </button>
@@ -462,7 +548,9 @@ export function AdminDashboard() {
             title="Cerrar acceso admin"
             onClick={() => {
               localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem(STORAGE_KEY_ROL);
               setAdminToken('');
+              setRol(ROL_SUPERUSER);
             }}
         >
           <i className="ti ti-logout" />

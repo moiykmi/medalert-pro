@@ -1,4 +1,4 @@
-package cl.medalertpro.notification.service;
+package cl.medalertpro.fhirintegration.service;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;

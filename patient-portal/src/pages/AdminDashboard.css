@@ -176,12 +176,16 @@
 .ma-login-wrap .btn-primary.red { background: #DC2626; }
 .ma-app .btn-primary.red:hover,
 .ma-login-wrap .btn-primary.red:hover { background: #B91C1C; }
-.ma-app .btn-sec {
+.ma-app .btn-sec,
+.ma-login-wrap .btn-sec {
   background: #F1F5F9; color: #0F172A; border: 1px solid #E2E8F0; border-radius: 9px;
   padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit;
   display: inline-flex; align-items: center; gap: 7px;
 }
-.ma-app .btn-sec:hover { background: #E2E8F0; }
+.ma-app .btn-sec:hover,
+.ma-login-wrap .btn-sec:hover { background: #E2E8F0; }
+.ma-login-wrap .btn-sec.on { background: #0C447C; color: #fff; border-color: #0C447C; }
+.ma-login-wrap .btn-sec { flex: 1; justify-content: center; }
 
 /* PATIENT CARD */
 .ma-app .pat-card {

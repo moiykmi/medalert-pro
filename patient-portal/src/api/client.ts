@@ -169,6 +169,12 @@ export interface Configuracion {
   actualizadoEn: string;
 }
 
+export interface AdminSesion {
+  token: string;
+  nombre: string;
+  rol: string;
+}
+
 export interface MedicoSesion {
   token: string;
   profesionalId: number;
@@ -369,6 +375,9 @@ export const api = {
 
   reporteMensual: (adminToken: string, periodo: string) =>
       requestAdmin<ReporteMensual>(ADMIN_BASE_URL, `/admin/dashboard/reporte-mensual?periodo=${periodo}`, adminToken),
+
+  adminLogin: (email: string, password: string) =>
+      requestFhir<AdminSesion>('/admin/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
   medicoLogin: (email: string, password: string) =>
       requestFhir<MedicoSesion>('/medico/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

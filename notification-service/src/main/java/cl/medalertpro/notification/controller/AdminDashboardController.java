@@ -45,7 +45,7 @@ public class AdminDashboardController {
     public ReporteMensualResponse reporteMensual(
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo,
             HttpServletRequest request) {
-        authGuard.validar(request);
+        authGuard.requerirRol(request, "ADMIN");
         return dashboardService.obtenerReporteMensual(periodo != null ? periodo : YearMonth.now());
     }
 }
