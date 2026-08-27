@@ -1,22 +1,24 @@
 :root {
-  /* Color: deep teal (trust/clinical calm) + warm amber accent (warmth, visibility for CTAs).
-     Chosen instead of generic SaaS blue or the common AI-cliché terracotta/near-black —
-     teal reads as clinical/civic without being cold, amber gives just one warm accent. */
-  --color-bg: #F7F6F1;
+  /* Alineado a la paleta azul corporativa del resto del sistema (Admin,
+     Médico, Reportes — ver AdminDashboard.css), para que todo MedAlert Pro
+     se vea como una sola aplicación. Antes este portal tenía su propia
+     paleta teal+ámbar; #D97706/amber se conserva solo como color semántico
+     de "pendiente" en badges, ya que el mockup usa el mismo tono para eso. */
+  --color-bg: #F0F4F8;
   --color-surface: #FFFFFF;
-  --color-primary: #0B5E64;
-  --color-primary-dark: #063E42;
-  --color-primary-tint: #E3EEEE;
-  --color-accent: #D98E2B;
-  --color-accent-tint: #FBF0DD;
-  --color-text: #1B211F;
-  --color-text-muted: #5C665F;
-  --color-border: #E2E0D6;
-  --color-success: #2F7A4D;
-  --color-success-tint: #E7F3EB;
-  --color-danger: #AE3B34;
-  --color-danger-tint: #FBEAE8;
-  --color-focus: #0B5E64;
+  --color-primary: #0C447C;
+  --color-primary-dark: #1E40AF;
+  --color-primary-tint: #DBEAFE;
+  --color-accent: #D97706;
+  --color-accent-tint: #FEF3C7;
+  --color-text: #0F172A;
+  --color-text-muted: #64748B;
+  --color-border: #E2E8F0;
+  --color-success: #059669;
+  --color-success-tint: #D1FAE5;
+  --color-danger: #BE123C;
+  --color-danger-tint: #FFE4E6;
+  --color-focus: #0C447C;
 
   --font-display: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, sans-serif;
