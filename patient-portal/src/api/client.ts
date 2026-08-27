@@ -373,6 +373,9 @@ export const api = {
   listarPacientesAdmin: (adminToken: string) =>
       requestAdmin<Paciente[]>(BASE_URL, '/admin/pacientes', adminToken),
 
+  historialNotificacionesPaciente: (adminToken: string, pacienteId: number) =>
+      requestAdmin<Notificacion[]>(BASE_URL, `/admin/pacientes/${pacienteId}/notificaciones`, adminToken),
+
   reporteMensual: (adminToken: string, periodo: string) =>
       requestAdmin<ReporteMensual>(ADMIN_BASE_URL, `/admin/dashboard/reporte-mensual?periodo=${periodo}`, adminToken),
 

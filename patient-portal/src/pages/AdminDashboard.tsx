@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Bitacora, Configuracion, Paciente, Profesional, ReporteMensual } from '../api/client';
+import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Bitacora, Configuracion, Notificacion, Paciente, Profesional, ReporteMensual } from '../api/client';
 import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
@@ -96,6 +96,36 @@ const ESTILO_TIPO_BITACORA: Record<string, { bg: string; color: string; icono: s
   REAGENDAMIENTO: { bg: '#EDE9FE', color: '#5B21B6', icono: 'ti-calendar-plus' },
 };
 
+const CANAL_ICONO: Record<string, string> = {
+  SMS: 'ti-device-mobile',
+  WHATSAPP: 'ti-brand-whatsapp',
+  EMAIL: 'ti-mail',
+};
+
+const TIPO_NOTIF_LABEL: Record<string, string> = {
+  CANCELACION: 'Aviso de cancelación',
+  RECORDATORIO_48H: 'Recordatorio 48h',
+  RECORDATORIO_24H: 'Recordatorio 24h',
+};
+
+const ESTADO_ENVIO_CHIP: Record<string, string> = {
+  CONFIRMADO: 'ok',
+  LEIDO: 'ok',
+  ENVIADO: 'off',
+  PENDIENTE: 'off',
+  FALLIDO: 'warn',
+  SIN_RESPUESTA: 'warn',
+};
+
+const ESTADO_ENVIO_LABEL: Record<string, string> = {
+  CONFIRMADO: 'Confirmado',
+  LEIDO: 'Leído',
+  ENVIADO: 'Enviado',
+  PENDIENTE: 'Pendiente',
+  FALLIDO: 'Fallido',
+  SIN_RESPUESTA: 'Sin respuesta',
+};
+
 function formatHora(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 }
@@ -136,6 +166,9 @@ export function AdminDashboard() {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [cargandoPacientes, setCargandoPacientes] = useState(false);
   const [busquedaPaciente, setBusquedaPaciente] = useState('');
+  const [pacienteSeleccionado, setPacienteSeleccionado] = useState<Paciente | null>(null);
+  const [notifsPaciente, setNotifsPaciente] = useState<Notificacion[]>([]);
+  const [cargandoNotifsPaciente, setCargandoNotifsPaciente] = useState(false);
 
   const [filtroProfesionalHistorial, setFiltroProfesionalHistorial] = useState('');
 
@@ -223,6 +256,19 @@ export function AdminDashboard() {
       setPacientes([]);
     } finally {
       setCargandoPacientes(false);
+    }
+  }
+
+  async function seleccionarPaciente(p: Paciente) {
+    setPacienteSeleccionado(p);
+    setCargandoNotifsPaciente(true);
+    try {
+      const resp = await api.historialNotificacionesPaciente(adminToken, p.id);
+      setNotifsPaciente(resp);
+    } catch {
+      setNotifsPaciente([]);
+    } finally {
+      setCargandoNotifsPaciente(false);
     }
   }
 
@@ -915,30 +961,114 @@ export function AdminDashboard() {
               />
             </div>
 
-            {cargandoPacientes && <p className="ma-vacio">Cargando pacientes…</p>}
+            <div className="two">
+              <div>
+                {cargandoPacientes && <p className="ma-vacio">Cargando pacientes…</p>}
 
-            {!cargandoPacientes && pacientesFiltrados.length === 0 && (
-              <div className="card ma-vacio-card">
-                <p>{pacientes.length === 0 ? 'No hay pacientes registrados.' : 'Sin resultados para tu búsqueda.'}</p>
-              </div>
-            )}
-
-            {!cargandoPacientes && pacientesFiltrados.map((p) => (
-              <div key={p.id} className="pat-card">
-                <div className="pat-avatar" style={{ background: '#DBEAFE', color: '#1D4ED8' }}>{iniciales(p.nombre)}</div>
-                <div className="pat-info">
-                  <div className="pat-name">{p.nombre}</div>
-                  <div className="pat-rut">RUT: {p.rut} · Tel: {p.telefono ?? 'sin registrar'}</div>
-                  <div className="pat-tags">
-                    <span className="chip off">{p.canalPreferido}</span>
-                    {p.adultoMayor && <span className="chip off">Adulto mayor</span>}
+                {!cargandoPacientes && pacientesFiltrados.length === 0 && (
+                  <div className="card ma-vacio-card">
+                    <p>{pacientes.length === 0 ? 'No hay pacientes registrados.' : 'Sin resultados para tu búsqueda.'}</p>
                   </div>
-                </div>
-                <span className={`chip ${p.telefono && p.email ? 'ok' : 'warn'}`}>
-                  {p.telefono && p.email ? 'Datos OK' : 'Actualizar'}
-                </span>
+                )}
+
+                {!cargandoPacientes && pacientesFiltrados.map((p) => (
+                  <div
+                      key={p.id}
+                      className="pat-card"
+                      onClick={() => seleccionarPaciente(p)}
+                      style={{
+                        cursor: 'pointer',
+                        borderColor: pacienteSeleccionado?.id === p.id ? '#0C447C' : undefined,
+                        boxShadow: pacienteSeleccionado?.id === p.id ? '0 0 0 1px #0C447C' : undefined,
+                      }}
+                  >
+                    <div className="pat-avatar" style={{ background: '#DBEAFE', color: '#1D4ED8' }}>{iniciales(p.nombre)}</div>
+                    <div className="pat-info">
+                      <div className="pat-name">{p.nombre}</div>
+                      <div className="pat-rut">RUT: {p.rut} · Tel: {p.telefono ?? 'sin registrar'}</div>
+                      <div className="pat-tags">
+                        <span className="chip off">{p.canalPreferido}</span>
+                        {p.adultoMayor && <span className="chip off">Adulto mayor</span>}
+                      </div>
+                    </div>
+                    <span className={`chip ${p.telefono && p.email ? 'ok' : 'warn'}`}>
+                      {p.telefono && p.email ? 'Datos OK' : 'Actualizar'}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+
+              <div>
+                {pacienteSeleccionado ? (
+                  <>
+                    <div className="stitle" style={{ fontSize: 13 }}>Detalle del paciente</div>
+                    <div className="card">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
+                        <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#1D4ED8' }}>
+                          {iniciales(pacienteSeleccionado.nombre)}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 600, color: '#0F172A' }}>{pacienteSeleccionado.nombre}</div>
+                          <div style={{ fontSize: 12, color: '#64748B' }}>RUT: {pacienteSeleccionado.rut}</div>
+                        </div>
+                      </div>
+                      <table className="tbl" style={{ marginBottom: 12 }}>
+                        <tbody>
+                          <tr>
+                            <td style={{ color: '#64748B', width: '40%' }}><i className="ti ti-device-mobile" style={{ fontSize: 14, verticalAlign: -2, marginRight: 5 }} />Teléfono</td>
+                            <td>{pacienteSeleccionado.telefono ?? 'Sin registrar'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ color: '#64748B' }}><i className="ti ti-mail" style={{ fontSize: 14, verticalAlign: -2, marginRight: 5 }} />Email</td>
+                            <td>{pacienteSeleccionado.email ?? 'Sin registrar'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ color: '#64748B' }}><i className="ti ti-send" style={{ fontSize: 14, verticalAlign: -2, marginRight: 5 }} />Canal preferido</td>
+                            <td>{pacienteSeleccionado.canalPreferido}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ color: '#64748B' }}><i className="ti ti-user" style={{ fontSize: 14, verticalAlign: -2, marginRight: 5 }} />Adulto mayor</td>
+                            <td>{pacienteSeleccionado.adultoMayor ? 'Sí' : 'No'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ color: '#64748B' }}><i className="ti ti-refresh" style={{ fontSize: 14, verticalAlign: -2, marginRight: 5 }} />Datos actualizados</td>
+                            <td>{formatDate(pacienteSeleccionado.datosActualizadosEn)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div className="divider" />
+                      <div className="stitle" style={{ fontSize: 13, marginBottom: 8 }}>Historial de notificaciones</div>
+
+                      {cargandoNotifsPaciente && <p className="ma-vacio">Cargando historial…</p>}
+
+                      {!cargandoNotifsPaciente && notifsPaciente.length === 0 && (
+                        <p style={{ fontSize: 12, color: '#94A3B8' }}>Sin notificaciones registradas para este paciente.</p>
+                      )}
+
+                      {!cargandoNotifsPaciente && notifsPaciente.map((n) => (
+                        <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
+                          <div style={{ width: 28, height: 28, borderRadius: 8, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <i className={`ti ${CANAL_ICONO[n.canal] ?? 'ti-send'}`} style={{ fontSize: 14, color: '#1D4ED8' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: '#0F172A' }}>{TIPO_NOTIF_LABEL[n.tipo] ?? n.tipo}</div>
+                            <div style={{ fontSize: 11, color: '#94A3B8' }}>{n.enviadoEn ? formatDate(n.enviadoEn) : 'Sin enviar'}</div>
+                          </div>
+                          <span className={`chip ${ESTADO_ENVIO_CHIP[n.estadoEnvio] ?? 'off'}`} style={{ fontSize: 10 }}>
+                            {ESTADO_ENVIO_LABEL[n.estadoEnvio] ?? n.estadoEnvio}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: '#94A3B8', flexDirection: 'column', gap: 10 }}>
+                    <i className="ti ti-user-search" style={{ fontSize: 40 }} />
+                    <div style={{ fontSize: 13 }}>Selecciona un paciente para ver su detalle</div>
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
 
