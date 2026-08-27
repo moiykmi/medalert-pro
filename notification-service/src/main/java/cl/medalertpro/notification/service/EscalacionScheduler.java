@@ -53,7 +53,7 @@ public class EscalacionScheduler {
     public void revisarYEscalar() {
         LocalDateTime limite = LocalDateTime.now().minusMinutes(minutosEspera);
         List<Notificacion> candidatas = notificacionRepository
-                .findByEstadoEnvioAndConfirmadoEnIsNullAndEnviadoEnBefore("ENVIADO", limite);
+                .findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore("ENVIADO", "CANCELACION", limite);
 
         if (candidatas.isEmpty()) return;
 

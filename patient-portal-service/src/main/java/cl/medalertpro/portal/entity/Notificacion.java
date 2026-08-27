@@ -17,14 +17,17 @@ public class Notificacion {
     @Id
     private Long id;
 
-    @Column(name = "evento_id", nullable = false)
-    private Long eventoId;
+    @Column(name = "evento_id")
+    private Long eventoId; // null para recordatorios (ver tipo)
 
     @Column(name = "paciente_id", nullable = false)
     private Long pacienteId;
 
     @Column(name = "cita_id")
     private Long citaId;
+
+    @Column(nullable = false, length = 30)
+    private String tipo; // CANCELACION | RECORDATORIO_48H | RECORDATORIO_24H
 
     @Column(nullable = false, length = 20)
     private String canal;

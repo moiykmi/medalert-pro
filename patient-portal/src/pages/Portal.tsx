@@ -30,6 +30,7 @@ interface AvisoAgrupado {
 function agruparPorEvento(notificaciones: Notificacion[]): AvisoAgrupado[] {
   const grupos = new Map<number, Notificacion[]>();
   for (const n of notificaciones) {
+    if (n.eventoId == null) continue; // recordatorios no tienen eventoId — se muestran aparte
     const lista = grupos.get(n.eventoId) ?? [];
     lista.push(n);
     grupos.set(n.eventoId, lista);
@@ -125,6 +126,14 @@ export function Portal({ sesion, onSalir }: PortalProps) {
   }, []);
 
   const avisos = useMemo(() => agruparPorEvento(notificaciones), [notificaciones]);
+
+  const recordatorios = useMemo(
+      () =>
+          notificaciones
+              .filter((n) => n.tipo === 'RECORDATORIO_48H' || n.tipo === 'RECORDATORIO_24H')
+              .sort((a, b) => (b.enviadoEn ?? '').localeCompare(a.enviadoEn ?? '')),
+      [notificaciones],
+  );
 
   function abrirEdicionPerfil() {
     setTelefonoDraft(perfil?.telefono ?? '');
@@ -270,6 +279,42 @@ export function Portal({ sesion, onSalir }: PortalProps) {
                       <p className="aviso__nota">
                         No pudimos contactarte por {aviso.ultimaNotificacion.canal === 'SMS' ? 'SMS' : aviso.ultimaNotificacion.canal === 'WHATSAPP' ? 'WhatsApp' : 'correo'} — el sistema intentará por otro canal en los próximos minutos.
                       </p>
+                  )}
+                </Card>
+            ))}
+          </div>
+        </section>
+
+        <section aria-labelledby="recordatorios-titulo">
+          <h2 id="recordatorios-titulo" className="portal__seccion-titulo">
+            Recordatorios de citas
+          </h2>
+
+          {!cargando && recordatorios.length === 0 && (
+              <Card className="portal__vacio-card">
+                <p>No tienes recordatorios pendientes.</p>
+              </Card>
+          )}
+
+          <div className="portal__lista">
+            {recordatorios.map((r) => (
+                <Card key={r.id} className="aviso">
+                  <div className="aviso__encabezado">
+                    <div>
+                      <p className="aviso__fecha">Enviado el {formatearFecha(r.enviadoEn)}</p>
+                      <p className="aviso__texto">
+                        {r.tipo === 'RECORDATORIO_48H' ? 'Recordatorio: tu cita es en 2 días' : 'Recordatorio: tu cita es mañana'}
+                      </p>
+                    </div>
+                    <span className={`badge badge--estado-${r.estadoEnvio === 'CONFIRMADO' ? 'confirmado' : 'pendiente'}`}>
+                      {r.estadoEnvio === 'CONFIRMADO' ? 'Confirmado' : 'Pendiente'}
+                    </span>
+                  </div>
+
+                  {r.estadoEnvio !== 'CONFIRMADO' && (
+                      <Button onClick={() => confirmar(r.id)} disabled={confirmandoId === r.id}>
+                        {confirmandoId === r.id ? 'Confirmando…' : 'Confirmar que asistiré'}
+                      </Button>
                   )}
                 </Card>
             ))}

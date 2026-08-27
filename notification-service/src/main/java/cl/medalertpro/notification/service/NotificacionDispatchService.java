@@ -58,4 +58,38 @@ public class NotificacionDispatchService {
 
         return notificacionRepository.save(notificacion);
     }
+
+    /**
+     * Envía un recordatorio preventivo (48h/24h antes de la cita) y lo registra.
+     * A diferencia de enviarYRegistrar, no tiene eventoId (no nace de una
+     * cancelación) y no escala entre canales — un único intento por el canal
+     * preferido del paciente, sin reintento si falla.
+     */
+    public Notificacion enviarRecordatorioYRegistrar(Long citaId, Long pacienteId, String tipo,
+                                                       String canal, String telefono, String email,
+                                                       String asunto, String texto) {
+        Notificacion notificacion = new Notificacion();
+        notificacion.setCitaId(citaId);
+        notificacion.setPacienteId(pacienteId);
+        notificacion.setTipo(tipo);
+        notificacion.setCanal(canal);
+        notificacion.setIntentoNumero((short) 1);
+
+        try {
+            String proveedorMessageId = switch (canal) {
+                case "SMS" -> smsService.enviarSms(telefono, texto);
+                case "WHATSAPP" -> whatsAppService.enviarWhatsApp(telefono, texto);
+                case "EMAIL" -> emailService.enviarEmail(email, asunto, texto);
+                default -> throw new IllegalArgumentException("Canal desconocido: " + canal);
+            };
+            notificacion.setEstadoEnvio("ENVIADO");
+            notificacion.setProveedorMessageId(proveedorMessageId);
+            notificacion.setEnviadoEn(LocalDateTime.now());
+        } catch (Exception e) {
+            log.error("Fallo al enviar recordatorio {} ({}) a paciente {}: {}", tipo, canal, pacienteId, e.getMessage());
+            notificacion.setEstadoEnvio("FALLIDO");
+        }
+
+        return notificacionRepository.save(notificacion);
+    }
 }

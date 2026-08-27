@@ -69,7 +69,7 @@ class EscalacionSchedulerTest {
     @Test
     void escalaUnaNotificacionEnviadaVencidaAlSiguienteCanal() {
         Notificacion stale = notificacion(1L, 100L, 200L, "SMS", (short) 1, LocalDateTime.now().minusMinutes(90));
-        when(notificacionRepository.findByEstadoEnvioAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), any(LocalDateTime.class)))
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
                 .thenReturn(List.of(stale));
         when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(100L, 200L))
                 .thenReturn(List.of(stale));
@@ -96,7 +96,7 @@ class EscalacionSchedulerTest {
 
     @Test
     void noEscalaCuandoNoHayNotificacionesVencidas() {
-        when(notificacionRepository.findByEstadoEnvioAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), any(LocalDateTime.class)))
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
                 .thenReturn(List.of());
 
         scheduler.revisarYEscalar();
@@ -108,7 +108,7 @@ class EscalacionSchedulerTest {
     @Test
     void noEscalaYMarcaSinRespuestaAlAlcanzarMaximoDeIntentos() {
         Notificacion agotada = notificacion(2L, 101L, 201L, "EMAIL", (short) 3, LocalDateTime.now().minusMinutes(90));
-        when(notificacionRepository.findByEstadoEnvioAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), any(LocalDateTime.class)))
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
                 .thenReturn(List.of(agotada));
 
         scheduler.revisarYEscalar();
@@ -125,7 +125,7 @@ class EscalacionSchedulerTest {
         Notificacion sms = notificacion(4L, 102L, 202L, "SMS", (short) 1, LocalDateTime.now().minusMinutes(150));
         Notificacion email = notificacion(5L, 102L, 202L, "EMAIL", (short) 2, LocalDateTime.now().minusMinutes(90));
 
-        when(notificacionRepository.findByEstadoEnvioAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), any(LocalDateTime.class)))
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
                 .thenReturn(List.of(ultima));
         when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(102L, 202L))
                 .thenReturn(List.of(sms, ultima, email));
@@ -141,7 +141,7 @@ class EscalacionSchedulerTest {
         Notificacion antigua = notificacion(6L, 103L, 203L, "SMS", (short) 1, LocalDateTime.now().minusMinutes(150));
         Notificacion reciente = notificacion(7L, 103L, 203L, "WHATSAPP", (short) 2, LocalDateTime.now().minusMinutes(90));
 
-        when(notificacionRepository.findByEstadoEnvioAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), any(LocalDateTime.class)))
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
                 .thenReturn(List.of(antigua, reciente));
         when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(103L, 203L))
                 .thenReturn(List.of(antigua, reciente));

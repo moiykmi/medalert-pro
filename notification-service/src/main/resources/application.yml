@@ -63,6 +63,10 @@ medalert:
     # como 1 minuto vía variable de entorno ESCALACION_MINUTOS_ESPERA, si no
     # quieres esperar una hora para ver la escalación en acción.
     minutos-espera: ${ESCALACION_MINUTOS_ESPERA:60}
+  recordatorios:
+    # 09:00 hora del servidor (America/Santiago desde el fix de zona horaria).
+    # Formato cron de Spring: segundo minuto hora día-mes mes día-semana.
+    cron: ${RECORDATORIOS_CRON:0 0 9 * * *}
   admin:
     token: ${MEDALERT_ADMIN_TOKEN:medalert-admin-dev-token}
   reportes:

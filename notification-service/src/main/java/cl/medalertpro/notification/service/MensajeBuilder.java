@@ -1,6 +1,11 @@
 package cl.medalertpro.notification.service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 public class MensajeBuilder {
+
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM 'a las' HH:mm");
 
     private MensajeBuilder() {}
 
@@ -13,5 +18,12 @@ public class MensajeBuilder {
         return String.format(
                 "MedAlert Pro: %s, su cita fue CANCELADA (motivo: %s). Contacte al consultorio para reagendar.",
                 nombrePaciente, motivo);
+    }
+
+    /** Mismo criterio sin tildes que construir(); horasAntes es 48 o 24. */
+    public static String construirRecordatorio(String nombrePaciente, LocalDateTime fechaHoraCita, int horasAntes) {
+        return String.format(
+                "MedAlert Pro: %s, recordatorio de su cita el %s (en %dh). Ingrese al portal para confirmar o reagendar.",
+                nombrePaciente, fechaHoraCita.format(FORMATO_FECHA), horasAntes);
     }
 }

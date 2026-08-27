@@ -35,9 +35,10 @@ export interface ActualizarDatosRequest {
 
 export interface Notificacion {
   id: number;
-  eventoId: number;
+  eventoId: number | null; // null para recordatorios (ver tipo)
   pacienteId: number;
   citaId: number | null;
+  tipo: 'CANCELACION' | 'RECORDATORIO_48H' | 'RECORDATORIO_24H';
   canal: 'SMS' | 'WHATSAPP' | 'EMAIL';
   intentoNumero: number;
   estadoEnvio: 'PENDIENTE' | 'ENVIADO' | 'FALLIDO' | 'LEIDO' | 'CONFIRMADO' | 'SIN_RESPUESTA';
