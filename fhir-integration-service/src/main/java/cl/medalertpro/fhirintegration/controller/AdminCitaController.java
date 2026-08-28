@@ -5,6 +5,7 @@ import cl.medalertpro.fhirintegration.entity.Cita;
 import cl.medalertpro.fhirintegration.repository.CitaRepository;
 import cl.medalertpro.fhirintegration.repository.PacienteRepository;
 import cl.medalertpro.fhirintegration.repository.ProfesionalRepository;
+import cl.medalertpro.fhirintegration.repository.ReagendamientoRepository;
 import cl.medalertpro.fhirintegration.service.AdminAuthGuard;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -30,13 +31,16 @@ public class AdminCitaController {
     private final CitaRepository citaRepository;
     private final PacienteRepository pacienteRepository;
     private final ProfesionalRepository profesionalRepository;
+    private final ReagendamientoRepository reagendamientoRepository;
     private final AdminAuthGuard authGuard;
 
     public AdminCitaController(CitaRepository citaRepository, PacienteRepository pacienteRepository,
-                                ProfesionalRepository profesionalRepository, AdminAuthGuard authGuard) {
+                                ProfesionalRepository profesionalRepository, ReagendamientoRepository reagendamientoRepository,
+                                AdminAuthGuard authGuard) {
         this.citaRepository = citaRepository;
         this.pacienteRepository = pacienteRepository;
         this.profesionalRepository = profesionalRepository;
+        this.reagendamientoRepository = reagendamientoRepository;
         this.authGuard = authGuard;
     }
 
@@ -70,6 +74,10 @@ public class AdminCitaController {
         if (!citaRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Cita no encontrada");
         }
+        // reagendamiento referencia cita (cita_original_id/cita_nueva_id) sin
+        // ON DELETE CASCADE — hay que soltar esa referencia antes o la
+        // eliminación de la cita viola la llave foránea.
+        reagendamientoRepository.deleteByCitaOriginalIdOrCitaNuevaId(id, id);
         citaRepository.deleteById(id);
     }
 }

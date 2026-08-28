@@ -5,6 +5,7 @@ import cl.medalertpro.fhirintegration.entity.Cita;
 import cl.medalertpro.fhirintegration.repository.CitaRepository;
 import cl.medalertpro.fhirintegration.repository.PacienteRepository;
 import cl.medalertpro.fhirintegration.repository.ProfesionalRepository;
+import cl.medalertpro.fhirintegration.repository.ReagendamientoRepository;
 import cl.medalertpro.fhirintegration.service.AdminAuthGuard;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,8 @@ class AdminCitaControllerTest {
     @Mock
     private ProfesionalRepository profesionalRepository;
     @Mock
+    private ReagendamientoRepository reagendamientoRepository;
+    @Mock
     private AdminAuthGuard authGuard;
     @Mock
     private HttpServletRequest httpRequest;
@@ -42,7 +45,7 @@ class AdminCitaControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new AdminCitaController(citaRepository, pacienteRepository, profesionalRepository, authGuard);
+        controller = new AdminCitaController(citaRepository, pacienteRepository, profesionalRepository, reagendamientoRepository, authGuard);
     }
 
     private CrearCitaRequest request(Long pacienteId, Long profesionalId) {
@@ -88,11 +91,12 @@ class AdminCitaControllerTest {
     }
 
     @Test
-    void eliminaLaCitaExistente() {
+    void eliminaLaCitaExistenteYSusReagendamientosAsociados() {
         when(citaRepository.existsById(27L)).thenReturn(true);
 
         controller.eliminar(27L, httpRequest);
 
+        verify(reagendamientoRepository).deleteByCitaOriginalIdOrCitaNuevaId(27L, 27L);
         verify(citaRepository).deleteById(27L);
     }
 
