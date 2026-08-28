@@ -20,6 +20,8 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -83,5 +85,25 @@ class AdminCitaControllerTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void eliminaLaCitaExistente() {
+        when(citaRepository.existsById(27L)).thenReturn(true);
+
+        controller.eliminar(27L, httpRequest);
+
+        verify(citaRepository).deleteById(27L);
+    }
+
+    @Test
+    void eliminarConCitaInexistenteLanza404() {
+        when(citaRepository.existsById(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> controller.eliminar(999L, httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.NOT_FOUND));
+        verify(citaRepository, never()).deleteById(any());
     }
 }
