@@ -12,7 +12,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -77,20 +76,23 @@ public class EscalacionScheduler {
         // distintos — posible cuando el tiempo de espera configurado es corto,
         // cercano al intervalo de revisión de 1 minuto — la candidata de este
         // ciclo puede ser un intento antiguo ya superado por uno más nuevo que
-        // todavía no vence. Si no es realmente el último intento, no hacemos
-        // nada: el intento nuevo se evaluará por sí solo cuando también venza.
-        Notificacion ultimaNotificacion = historial.stream()
-                .max(Comparator.comparing(Notificacion::getIntentoNumero))
-                .orElse(candidata);
-        if (!ultimaNotificacion.getId().equals(candidata.getId())) {
+        // todavía no vence. Ojo: "superado" significa que ese intento más nuevo
+        // sigue ENVIADO y sin confirmar (aún en juego) — si en cambio falló
+        // (FALLIDO), no cuenta como que lo superó, o la candidata quedaría
+        // esperando para siempre un intento que ya no va a resolverse solo.
+        boolean hayIntentoMasNuevoAunPendiente = historial.stream()
+                .anyMatch(n -> n.getIntentoNumero() > candidata.getIntentoNumero()
+                        && "ENVIADO".equals(n.getEstadoEnvio())
+                        && n.getConfirmadoEn() == null);
+        if (hayIntentoMasNuevoAunPendiente) {
             return;
         }
 
         int maxIntentos = configuracionService.escalacionMaxIntentos();
-        if (ultimaNotificacion.getIntentoNumero() >= maxIntentos) {
+        if (candidata.getIntentoNumero() >= maxIntentos) {
             log.info("Paciente {} (evento {}) alcanzó el máximo de {} intentos sin confirmar — no se escala más",
-                    ultimaNotificacion.getPacienteId(), ultimaNotificacion.getEventoId(), maxIntentos);
-            marcarSinRespuesta(ultimaNotificacion);
+                    candidata.getPacienteId(), candidata.getEventoId(), maxIntentos);
+            marcarSinRespuesta(candidata);
             return;
         }
 
@@ -104,15 +106,15 @@ public class EscalacionScheduler {
 
         if (siguienteCanal == null) {
             log.info("Paciente {} (evento {}) ya intentó todos los canales disponibles (o los restantes están deshabilitados) — no se escala más",
-                    ultimaNotificacion.getPacienteId(), ultimaNotificacion.getEventoId());
-            marcarSinRespuesta(ultimaNotificacion);
+                    candidata.getPacienteId(), candidata.getEventoId());
+            marcarSinRespuesta(candidata);
             return;
         }
 
-        Paciente paciente = pacienteRepository.findById(ultimaNotificacion.getPacienteId()).orElse(null);
-        EventoCancelacion evento = eventoRepository.findById(ultimaNotificacion.getEventoId()).orElse(null);
+        Paciente paciente = pacienteRepository.findById(candidata.getPacienteId()).orElse(null);
+        EventoCancelacion evento = eventoRepository.findById(candidata.getEventoId()).orElse(null);
         if (paciente == null || evento == null) {
-            log.warn("No se pudo escalar notificación {} — paciente o evento ya no existen", ultimaNotificacion.getId());
+            log.warn("No se pudo escalar notificación {} — paciente o evento ya no existen", candidata.getId());
             return;
         }
 
@@ -120,11 +122,11 @@ public class EscalacionScheduler {
         short nuevoIntento = (short) (historial.size() + 1);
 
         log.info("Escalando paciente {} (evento {}) de {} a {} — intento {}/{}",
-                paciente.getId(), evento.getId(), ultimaNotificacion.getCanal(), siguienteCanal,
+                paciente.getId(), evento.getId(), candidata.getCanal(), siguienteCanal,
                 nuevoIntento, maxIntentos);
 
         dispatchService.enviarYRegistrar(
-                evento.getId(), paciente.getId(), ultimaNotificacion.getCitaId(),
+                evento.getId(), paciente.getId(), candidata.getCitaId(),
                 siguienteCanal, paciente.getTelefono(), paciente.getEmail(), texto, nuevoIntento);
     }
 

@@ -165,6 +165,39 @@ class EscalacionSchedulerTest {
     }
 
     @Test
+    void procesaUnIntentoAunqueExistaUnoMasNuevoQueYaFallo() {
+        // Distinto del caso anterior: el intento más nuevo en el historial (SMS,
+        // intento 2) no quedó pendiente — FALLÓ al enviarse. Un intento fallido no
+        // "supera" al candidato, o este quedaría esperando para siempre algo que
+        // ya no va a resolverse solo. Debe procesarse con normalidad.
+        Notificacion emailPendiente = notificacion(8L, 106L, 206L, "EMAIL", (short) 1, LocalDateTime.now().minusMinutes(90));
+        Notificacion smsFallido = notificacion(9L, 106L, 206L, "SMS", (short) 2, LocalDateTime.now().minusMinutes(80));
+        smsFallido.setEstadoEnvio("FALLIDO");
+
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
+                .thenReturn(List.of(emailPendiente));
+        when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(106L, 206L))
+                .thenReturn(List.of(emailPendiente, smsFallido));
+
+        Paciente paciente = new Paciente();
+        paciente.setId(206L);
+        paciente.setNombre("Sofía Lagos");
+        paciente.setTelefono("+56955555555");
+        paciente.setEmail("sofia@test.cl");
+        when(pacienteRepository.findById(206L)).thenReturn(Optional.of(paciente));
+
+        EventoCancelacion evento = new EventoCancelacion();
+        evento.setId(106L);
+        evento.setMotivo("motivo z");
+        when(eventoRepository.findById(106L)).thenReturn(Optional.of(evento));
+
+        scheduler.revisarYEscalar();
+
+        verify(dispatchService).enviarYRegistrar(eq(106L), eq(206L), anyLong(), eq("WHATSAPP"),
+                anyString(), anyString(), anyString(), eq((short) 3));
+    }
+
+    @Test
     void procesaSoloLaNotificacionMasRecientePorParEventoPaciente() {
         Notificacion antigua = notificacion(6L, 103L, 203L, "SMS", (short) 1, LocalDateTime.now().minusMinutes(150));
         Notificacion reciente = notificacion(7L, 103L, 203L, "WHATSAPP", (short) 2, LocalDateTime.now().minusMinutes(90));
