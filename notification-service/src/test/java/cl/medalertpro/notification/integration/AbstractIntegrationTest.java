@@ -18,7 +18,7 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * Base para las pruebas de integración del notification-service: levanta Postgres,
  * RabbitMQ y Redis reales vía Testcontainers, y sustituye los servicios que hablan
- * con proveedores externos (Twilio, SMTP) por mocks para no hacer llamadas reales.
+ * con proveedores externos (Twilio, Mailtrap) por mocks para no hacer llamadas reales.
  * Requiere un daemon de Docker accesible; si no está disponible, estas pruebas
  * fallan al arrancar los contenedores (no es un fallo del código bajo prueba).
  */
@@ -55,14 +55,14 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
 
-        // Credenciales dummy: TwilioConfig y JavaMailSender solo necesitan valores
-        // resolubles para arrancar el contexto; SmsService/WhatsAppService/EmailService
-        // están mockeados con @MockBean, así que nunca se hace una llamada real.
+        // Credenciales dummy: solo necesitan valores resolubles para arrancar el
+        // contexto; SmsService/WhatsAppService/EmailService están mockeados con
+        // @MockBean, así que nunca se hace una llamada real.
         registry.add("medalert.twilio.account-sid", () -> "ACtest0000000000000000000000000");
         registry.add("medalert.twilio.auth-token", () -> "test-token");
         registry.add("medalert.twilio.sms-from-number", () -> "+10000000000");
-        registry.add("spring.mail.username", () -> "test-mail-user");
-        registry.add("spring.mail.password", () -> "test-mail-pass");
+        registry.add("medalert.mailtrap.api-token", () -> "test-mailtrap-token");
+        registry.add("medalert.mailtrap.inbox-id", () -> "12345");
     }
 
     @MockBean
