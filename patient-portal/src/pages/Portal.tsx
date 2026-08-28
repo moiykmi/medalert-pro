@@ -187,7 +187,12 @@ export function Portal({ sesion, onSalir }: PortalProps) {
     setEnviandoReagendo(citaId);
     setMensajeEstado(null);
     try {
-      await api.reagendarCita(citaId, new Date(valor).toISOString(), sesion.token);
+      // El backend guarda fechaHora como LocalDateTime (sin zona horaria) —
+      // hay que mandar el valor tal cual lo entregó el input, en hora de
+      // Chile. Convertirlo con new Date(valor).toISOString() lo pasa a UTC
+      // y el backend lo vuelve a tratar como si fuera local, desfasando la
+      // hora varias horas (bug real que causó citas fantasma a las 4 AM).
+      await api.reagendarCita(citaId, valor, sesion.token);
       setMensajeEstado('Tu cita fue reagendada.');
       setReagendandoId(null);
       await cargarDatos();
