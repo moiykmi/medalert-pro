@@ -171,6 +171,7 @@
 .ma-app .hora-chip:hover:not(:disabled) { border-color: #94A3B8; }
 .ma-app .hora-chip.selected { border-color: #0C447C; background: #E6F1FB; color: #0C447C; font-weight: 600; }
 .ma-app .hora-chip:disabled { opacity: .4; cursor: not-allowed; }
+.ma-app .hora-chip.ocupado { opacity: 1; background: #F1F5F9; color: #94A3B8; text-decoration: line-through; }
 
 .ma-app .btn-primary,
 .ma-login-wrap .btn-primary {

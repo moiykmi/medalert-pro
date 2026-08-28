@@ -43,8 +43,9 @@ const BLOQUES_HORARIOS: string[] = (() => {
   return bloques;
 })();
 
-function SelectorFechaHora({ value, onChange }: { value: string; onChange: (valor: string) => void }) {
+function SelectorFechaHora({ value, onChange, horariosOcupados }: { value: string; onChange: (valor: string) => void; horariosOcupados?: string[] }) {
   const [fecha, hora] = value ? value.split('T') : ['', ''];
+  const ocupados = new Set(horariosOcupados ?? []);
 
   return (
     <div>
@@ -59,17 +60,21 @@ function SelectorFechaHora({ value, onChange }: { value: string; onChange: (valo
       />
       <label className="form-label">Hora</label>
       <div className="hora-grid">
-        {BLOQUES_HORARIOS.map((bloque) => (
-            <button
-                type="button"
-                key={bloque}
-                className={`hora-chip${hora === bloque ? ' selected' : ''}`}
-                disabled={!fecha}
-                onClick={() => onChange(`${fecha}T${bloque}`)}
-            >
-              {bloque}
-            </button>
-        ))}
+        {BLOQUES_HORARIOS.map((bloque) => {
+          const ocupado = ocupados.has(bloque);
+          return (
+              <button
+                  type="button"
+                  key={bloque}
+                  className={`hora-chip${hora === bloque ? ' selected' : ''}${ocupado ? ' ocupado' : ''}`}
+                  disabled={!fecha || ocupado}
+                  title={ocupado ? 'Ese profesional ya tiene una cita en este horario' : undefined}
+                  onClick={() => onChange(`${fecha}T${bloque}`)}
+              >
+                {bloque}
+              </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -270,13 +275,16 @@ export function AdminDashboard() {
   const [creandoCita, setCreandoCita] = useState(false);
   const [citaProfesionalId, setCitaProfesionalId] = useState('');
   const [citaFechaHora, setCitaFechaHora] = useState('');
+  const [horariosOcupadosCita, setHorariosOcupadosCita] = useState<string[]>([]);
   const [guardandoCita, setGuardandoCita] = useState(false);
   const [mensajeCita, setMensajeCita] = useState<string | null>(null);
   const [errorCita, setErrorCita] = useState<string | null>(null);
   const [creandoCitaAgenda, setCreandoCitaAgenda] = useState(false);
+  const [busquedaPacienteCitaAgenda, setBusquedaPacienteCitaAgenda] = useState('');
   const [citaAgendaPacienteId, setCitaAgendaPacienteId] = useState('');
   const [citaAgendaProfesionalId, setCitaAgendaProfesionalId] = useState('');
   const [citaAgendaFechaHora, setCitaAgendaFechaHora] = useState('');
+  const [horariosOcupadosCitaAgenda, setHorariosOcupadosCitaAgenda] = useState<string[]>([]);
   const [guardandoCitaAgenda, setGuardandoCitaAgenda] = useState(false);
   const [mensajeCitaAgenda, setMensajeCitaAgenda] = useState<string | null>(null);
   const [errorCitaAgenda, setErrorCitaAgenda] = useState<string | null>(null);
@@ -342,6 +350,17 @@ export function AdminDashboard() {
       setAgendaCitas([]);
     } finally {
       setCargandoAgenda(false);
+    }
+  }
+
+  async function horariosOcupadosDe(tokenActual: string, fecha: string, profesionalId: string): Promise<string[]> {
+    try {
+      const resp = await api.agendaDelDia(tokenActual, fecha);
+      return resp
+          .filter((c) => c.estado === 'AGENDADA' && String(c.profesionalId) === profesionalId)
+          .map((c) => c.fechaHora.slice(11, 16));
+    } catch {
+      return [];
     }
   }
 
@@ -482,6 +501,7 @@ export function AdminDashboard() {
   }
 
   function abrirCrearCitaAgenda() {
+    setBusquedaPacienteCitaAgenda('');
     setCitaAgendaPacienteId('');
     setCitaAgendaProfesionalId('');
     setCitaAgendaFechaHora(fechaCancelacion ? `${fechaCancelacion}T09:00` : '');
@@ -647,6 +667,28 @@ export function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, tab, fechaCancelacion]);
 
+  useEffect(() => {
+    const fecha = citaAgendaFechaHora.split('T')[0];
+    if (!adminToken || !citaAgendaProfesionalId || !fecha) { setHorariosOcupadosCitaAgenda([]); return; }
+    let cancelado = false;
+    horariosOcupadosDe(adminToken, fecha, citaAgendaProfesionalId).then((horarios) => {
+      if (!cancelado) setHorariosOcupadosCitaAgenda(horarios);
+    });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, citaAgendaProfesionalId, citaAgendaFechaHora]);
+
+  useEffect(() => {
+    const fecha = citaFechaHora.split('T')[0];
+    if (!adminToken || !citaProfesionalId || !fecha) { setHorariosOcupadosCita([]); return; }
+    let cancelado = false;
+    horariosOcupadosDe(adminToken, fecha, citaProfesionalId).then((horarios) => {
+      if (!cancelado) setHorariosOcupadosCita(horarios);
+    });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, citaProfesionalId, citaFechaHora]);
+
   const profesionalSeleccionado = useMemo(
       () => profesionales.find((p) => String(p.id) === profesionalId) ?? null,
       [profesionales, profesionalId],
@@ -659,6 +701,14 @@ export function AdminDashboard() {
         (p) => p.nombre.toLowerCase().includes(q) || p.rut.toLowerCase().includes(q),
     );
   }, [pacientes, busquedaPaciente]);
+
+  const pacientesFiltradosCitaAgenda = useMemo(() => {
+    const q = busquedaPacienteCitaAgenda.trim().toLowerCase();
+    if (!q) return pacientes;
+    return pacientes.filter(
+        (p) => p.nombre.toLowerCase().includes(q) || p.rut.toLowerCase().includes(q),
+    );
+  }, [pacientes, busquedaPacienteCitaAgenda]);
 
   const profesionalesEnHistorial = useMemo(() => {
     const mapa = new Map<number, string>();
@@ -1022,6 +1072,14 @@ export function AdminDashboard() {
               >
                 <div>
                   <label className="form-label">Paciente</label>
+                  <input
+                      type="text"
+                      className="form-input"
+                      style={{ marginBottom: 6 }}
+                      placeholder="Buscar por nombre o RUT..."
+                      value={busquedaPacienteCitaAgenda}
+                      onChange={(e) => setBusquedaPacienteCitaAgenda(e.target.value)}
+                  />
                   <select
                       className="form-select"
                       style={{ width: '100%' }}
@@ -1030,8 +1088,8 @@ export function AdminDashboard() {
                       required
                   >
                     <option value="" disabled>Seleccionar...</option>
-                    {pacientes.map((p) => (
-                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                    {pacientesFiltradosCitaAgenda.map((p) => (
+                        <option key={p.id} value={p.id}>{p.nombre} — {p.rut}</option>
                     ))}
                   </select>
                 </div>
@@ -1051,7 +1109,7 @@ export function AdminDashboard() {
                   </select>
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <SelectorFechaHora value={citaAgendaFechaHora} onChange={setCitaAgendaFechaHora} />
+                  <SelectorFechaHora value={citaAgendaFechaHora} onChange={setCitaAgendaFechaHora} horariosOcupados={horariosOcupadosCitaAgenda} />
                 </div>
                 <button type="submit" className="btn-primary" style={{ gridColumn: '1 / -1', justifyContent: 'center', fontSize: 12 }} disabled={guardandoCitaAgenda}>
                   {guardandoCitaAgenda ? 'Creando…' : 'Crear cita'}
@@ -1515,7 +1573,7 @@ export function AdminDashboard() {
                             ))}
                           </select>
                           <div style={{ marginBottom: 6 }}>
-                            <SelectorFechaHora value={citaFechaHora} onChange={setCitaFechaHora} />
+                            <SelectorFechaHora value={citaFechaHora} onChange={setCitaFechaHora} horariosOcupados={horariosOcupadosCita} />
                           </div>
                           <p style={{ margin: '0 0 10px', fontSize: 11, color: '#94A3B8' }}>
                             Horario de atención: 08:00 a 18:00, sin colación de 13:00 a 14:00.
