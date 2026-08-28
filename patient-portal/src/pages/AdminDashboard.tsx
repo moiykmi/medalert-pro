@@ -32,6 +32,49 @@ function mesActualISO(): string {
   return hoyISO().slice(0, 7);
 }
 
+const BLOQUES_HORARIOS: string[] = (() => {
+  const bloques: string[] = [];
+  for (let h = 8; h < 18; h++) {
+    if (h === 13) continue;
+    for (const m of [0, 30]) {
+      bloques.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+  return bloques;
+})();
+
+function SelectorFechaHora({ value, onChange }: { value: string; onChange: (valor: string) => void }) {
+  const [fecha, hora] = value ? value.split('T') : ['', ''];
+
+  return (
+    <div>
+      <label className="form-label">Fecha</label>
+      <input
+          type="date"
+          className="form-input"
+          style={{ marginBottom: 10 }}
+          value={fecha}
+          onChange={(e) => onChange(e.target.value ? `${e.target.value}T${hora || ''}` : '')}
+          required
+      />
+      <label className="form-label">Hora</label>
+      <div className="hora-grid">
+        {BLOQUES_HORARIOS.map((bloque) => (
+            <button
+                type="button"
+                key={bloque}
+                className={`hora-chip${hora === bloque ? ' selected' : ''}`}
+                disabled={!fecha}
+                onClick={() => onChange(`${fecha}T${bloque}`)}
+            >
+              {bloque}
+            </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ultimosMeses(cantidad: number): string[] {
   const meses: string[] = [];
   const base = new Date();
@@ -966,7 +1009,7 @@ export function AdminDashboard() {
               <div className="stitle" style={{ marginBottom: 0 }}>
                 <i className="ti ti-calendar-event" style={{ color: '#059669' }} /> Agenda del día — {fechaCancelacion ? formatDate(`${fechaCancelacion}T00:00:00`).split(',')[0] : ''}
               </div>
-              <button type="button" className="btn-sec" style={{ fontSize: 12 }} onClick={() => (creandoCitaAgenda ? setCreandoCitaAgenda(false) : abrirCrearCitaAgenda())}>
+              <button type="button" className={creandoCitaAgenda ? 'btn-sec' : 'btn-primary'} style={{ fontSize: 12 }} onClick={() => (creandoCitaAgenda ? setCreandoCitaAgenda(false) : abrirCrearCitaAgenda())}>
                 <i className="ti ti-calendar-plus" style={{ fontSize: 14 }} />{creandoCitaAgenda ? 'Cancelar' : 'Crear cita'}
               </button>
             </div>
@@ -1007,17 +1050,10 @@ export function AdminDashboard() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="form-label">Fecha y hora</label>
-                  <input
-                      type="datetime-local"
-                      className="form-input"
-                      value={citaAgendaFechaHora}
-                      onChange={(e) => setCitaAgendaFechaHora(e.target.value)}
-                      required
-                  />
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <SelectorFechaHora value={citaAgendaFechaHora} onChange={setCitaAgendaFechaHora} />
                 </div>
-                <button type="submit" className="btn-primary" style={{ justifyContent: 'center', fontSize: 12 }} disabled={guardandoCitaAgenda}>
+                <button type="submit" className="btn-primary" style={{ gridColumn: '1 / -1', justifyContent: 'center', fontSize: 12 }} disabled={guardandoCitaAgenda}>
                   {guardandoCitaAgenda ? 'Creando…' : 'Crear cita'}
                 </button>
                 <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 11, color: '#94A3B8' }}>
@@ -1452,7 +1488,7 @@ export function AdminDashboard() {
                         </button>
                         <button
                             type="button"
-                            className="btn-sec"
+                            className="btn-primary"
                             style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
                             onClick={abrirCrearCita}
                         >
@@ -1478,15 +1514,9 @@ export function AdminDashboard() {
                                 <option key={p.id} value={p.id}>{p.nombre} — {p.especialidad}</option>
                             ))}
                           </select>
-                          <label className="form-label">Fecha y hora</label>
-                          <input
-                              type="datetime-local"
-                              className="form-input"
-                              style={{ marginBottom: 6 }}
-                              value={citaFechaHora}
-                              onChange={(e) => setCitaFechaHora(e.target.value)}
-                              required
-                          />
+                          <div style={{ marginBottom: 6 }}>
+                            <SelectorFechaHora value={citaFechaHora} onChange={setCitaFechaHora} />
+                          </div>
                           <p style={{ margin: '0 0 10px', fontSize: 11, color: '#94A3B8' }}>
                             Horario de atención: 08:00 a 18:00, sin colación de 13:00 a 14:00.
                           </p>

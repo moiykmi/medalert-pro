@@ -161,6 +161,17 @@
 .ma-login-wrap .form-input:focus { outline: none; border-color: #3B82F6; background: #fff; }
 .ma-app .form-select { cursor: pointer; }
 
+.ma-app .hora-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 6px;
+}
+.ma-app .hora-chip {
+  border: 1px solid #E2E8F0; background: #F8FAFC; border-radius: 8px; padding: 6px 0;
+  font-size: 12px; color: #0F172A; cursor: pointer; font-family: inherit; text-align: center;
+}
+.ma-app .hora-chip:hover:not(:disabled) { border-color: #94A3B8; }
+.ma-app .hora-chip.selected { border-color: #0C447C; background: #E6F1FB; color: #0C447C; font-weight: 600; }
+.ma-app .hora-chip:disabled { opacity: .4; cursor: not-allowed; }
+
 .ma-app .btn-primary,
 .ma-login-wrap .btn-primary {
   background: #0C447C; color: #fff; border: none; border-radius: 9px; padding: 11px 18px;
