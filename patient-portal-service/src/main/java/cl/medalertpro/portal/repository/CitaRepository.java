@@ -9,7 +9,8 @@ import java.util.List;
 public interface CitaRepository extends JpaRepository<Cita, Long> {
     List<Cita> findByPacienteIdOrderByFechaHoraDesc(Long pacienteId);
 
-    // Usado al reagendar: evita que dos citas AGENDADA queden en el mismo
-    // horario para el mismo profesional (doble reserva del mismo cupo).
-    boolean existsByProfesionalIdAndFechaHoraAndEstado(Long profesionalId, LocalDateTime fechaHora, String estado);
+    // Usado al reagendar: evita que dos citas AGENDADA del mismo profesional
+    // queden con bloques de 30 min que se solapan (ver ReglaHorarioCita).
+    boolean existsByProfesionalIdAndEstadoAndFechaHoraBetween(
+            Long profesionalId, String estado, LocalDateTime desde, LocalDateTime hasta);
 }

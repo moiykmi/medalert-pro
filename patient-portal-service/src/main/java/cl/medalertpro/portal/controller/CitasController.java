@@ -6,6 +6,7 @@ import cl.medalertpro.portal.entity.Reagendamiento;
 import cl.medalertpro.portal.repository.CitaRepository;
 import cl.medalertpro.portal.repository.ReagendamientoRepository;
 import cl.medalertpro.portal.service.AuthGuard;
+import cl.medalertpro.portal.service.ReglaHorarioCita;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -19,11 +20,13 @@ import java.util.List;
  * HU10: consulta de citas del paciente autenticado.
  * HU12: reagendamiento autónomo — dado que RAS no expone horarios disponibles
  * reales, el paciente propone una nueva fecha/hora libremente (no elige de una
- * lista de cupos). Sí se valida que ese horario puntual no choque con otra
- * cita AGENDADA del mismo profesional — evita la doble reserva del mismo
- * cupo, aunque no existe un calendario de disponibilidad real que sugiera
- * horarios libres de antemano. Limitación conocida del MVP, coherente con el
- * resto del proyecto (RAS simulado, no integrado en producción).
+ * lista de cupos). Sí se valida contra las reglas de horario de atención
+ * (ver ReglaHorarioCita: bloques de 30 min, 08:00-18:00, sin colación 13-14h)
+ * y que ese bloque no choque con otra cita AGENDADA del mismo profesional —
+ * evita la doble reserva del mismo cupo, aunque no existe un calendario de
+ * disponibilidad real que sugiera horarios libres de antemano. Limitación
+ * conocida del MVP, coherente con el resto del proyecto (RAS simulado, no
+ * integrado en producción).
  */
 @RestController
 @RequestMapping("/citas")
@@ -62,8 +65,11 @@ public class CitasController {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Solo se pueden reagendar citas en estado CANCELADA (estado actual: " + citaOriginal.getEstado() + ")");
         }
-        if (citaRepository.existsByProfesionalIdAndFechaHoraAndEstado(
-                citaOriginal.getProfesionalId(), request.getNuevaFechaHora(), "AGENDADA")) {
+        ReglaHorarioCita.validar(request.getNuevaFechaHora());
+        if (citaRepository.existsByProfesionalIdAndEstadoAndFechaHoraBetween(
+                citaOriginal.getProfesionalId(), "AGENDADA",
+                ReglaHorarioCita.inicioVentanaSolapamiento(request.getNuevaFechaHora()),
+                ReglaHorarioCita.finVentanaSolapamiento(request.getNuevaFechaHora()))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "El profesional ya tiene una cita agendada en ese horario — elige otro horario");
         }

@@ -1020,6 +1020,9 @@ export function AdminDashboard() {
                 <button type="submit" className="btn-primary" style={{ justifyContent: 'center', fontSize: 12 }} disabled={guardandoCitaAgenda}>
                   {guardandoCitaAgenda ? 'Creando…' : 'Crear cita'}
                 </button>
+                <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 11, color: '#94A3B8' }}>
+                  Horario de atención: 08:00 a 18:00, sin colación de 13:00 a 14:00.
+                </p>
                 {errorCitaAgenda && <p className="ma-error-text" style={{ gridColumn: '1 / -1', margin: 0 }}>{errorCitaAgenda}</p>}
                 {mensajeCitaAgenda && <p className="ma-exito-text" style={{ gridColumn: '1 / -1', margin: 0 }}>{mensajeCitaAgenda}</p>}
               </form>
@@ -1479,11 +1482,14 @@ export function AdminDashboard() {
                           <input
                               type="datetime-local"
                               className="form-input"
-                              style={{ marginBottom: 10 }}
+                              style={{ marginBottom: 6 }}
                               value={citaFechaHora}
                               onChange={(e) => setCitaFechaHora(e.target.value)}
                               required
                           />
+                          <p style={{ margin: '0 0 10px', fontSize: 11, color: '#94A3B8' }}>
+                            Horario de atención: 08:00 a 18:00, sin colación de 13:00 a 14:00.
+                          </p>
                           {errorCita && <p className="ma-error-text" style={{ marginBottom: 8 }}>{errorCita}</p>}
                           {mensajeCita && <p className="ma-exito-text" style={{ marginBottom: 8 }}>{mensajeCita}</p>}
                           <div style={{ display: 'flex', gap: 8 }}>

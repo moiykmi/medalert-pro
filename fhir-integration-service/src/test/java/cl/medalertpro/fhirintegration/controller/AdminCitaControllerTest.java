@@ -17,10 +17,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,10 +51,14 @@ class AdminCitaControllerTest {
     }
 
     private CrearCitaRequest request(Long pacienteId, Long profesionalId) {
+        return request(pacienteId, profesionalId, LocalDateTime.of(2026, 9, 1, 10, 0));
+    }
+
+    private CrearCitaRequest request(Long pacienteId, Long profesionalId, LocalDateTime fechaHora) {
         CrearCitaRequest r = new CrearCitaRequest();
         r.setPacienteId(pacienteId);
         r.setProfesionalId(profesionalId);
-        r.setFechaHora(LocalDateTime.of(2026, 9, 1, 10, 0));
+        r.setFechaHora(fechaHora);
         return r;
     }
 
@@ -67,6 +73,42 @@ class AdminCitaControllerTest {
         assertThat(resultado.getPacienteId()).isEqualTo(1L);
         assertThat(resultado.getProfesionalId()).isEqualTo(2L);
         assertThat(resultado.getEstado()).isEqualTo("AGENDADA");
+    }
+
+    @Test
+    void conHorarioFueraDeJornadaLanza400() {
+        when(pacienteRepository.existsById(1L)).thenReturn(true);
+        when(profesionalRepository.existsById(2L)).thenReturn(true);
+
+        assertThatThrownBy(() -> controller.crear(request(1L, 2L, LocalDateTime.of(2026, 9, 1, 18, 0)), httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void conHorarioDeColacionLanza400() {
+        when(pacienteRepository.existsById(1L)).thenReturn(true);
+        when(profesionalRepository.existsById(2L)).thenReturn(true);
+
+        assertThatThrownBy(() -> controller.crear(request(1L, 2L, LocalDateTime.of(2026, 9, 1, 13, 30)), httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void conHorarioSolapadoConOtraCitaDelMismoProfesionalLanza409() {
+        when(pacienteRepository.existsById(1L)).thenReturn(true);
+        when(profesionalRepository.existsById(2L)).thenReturn(true);
+        when(citaRepository.findByProfesionalIdAndEstadoAndFechaHoraBetween(eq(2L), eq("AGENDADA"), any(), any()))
+                .thenReturn(List.of(new Cita()));
+
+        assertThatThrownBy(() -> controller.crear(request(1L, 2L), httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
+        verify(citaRepository, never()).save(any());
     }
 
     @Test

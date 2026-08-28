@@ -384,6 +384,9 @@ export function Portal({ sesion, onSalir }: PortalProps) {
                                 setNuevaFecha((prev) => ({ ...prev, [cita.id]: e.target.value }))
                             }
                         />
+                        <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94A3B8' }}>
+                          Horario de atención: 08:00 a 18:00, sin colación de 13:00 a 14:00.
+                        </p>
                         <div className="cita__reagendar-acciones">
                           <Button
                               onClick={() => reagendar(cita.id)}

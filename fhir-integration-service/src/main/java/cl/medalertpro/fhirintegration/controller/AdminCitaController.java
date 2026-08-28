@@ -7,6 +7,7 @@ import cl.medalertpro.fhirintegration.repository.PacienteRepository;
 import cl.medalertpro.fhirintegration.repository.ProfesionalRepository;
 import cl.medalertpro.fhirintegration.repository.ReagendamientoRepository;
 import cl.medalertpro.fhirintegration.service.AdminAuthGuard;
+import cl.medalertpro.fhirintegration.service.ReglaHorarioCita;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,7 +24,10 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Creación manual de citas AGENDADA desde el admin — útil para cargar datos
  * de prueba (no hay sincronización real con un RAS todavía) y así poder
- * ejercitar el flujo de cancelación con pacientes concretos.
+ * ejercitar el flujo de cancelación con pacientes concretos. Sujeta a las
+ * mismas reglas de horario que el reagendamiento del paciente (ver
+ * ReglaHorarioCita): bloques de 30 min, 08:00-18:00, sin colación 13-14h,
+ * sin solaparse con otra cita AGENDADA del mismo profesional.
  */
 @RestController
 @RequestMapping("/admin/citas")
@@ -55,6 +59,15 @@ public class AdminCitaController {
         }
         if (!profesionalRepository.existsById(request.getProfesionalId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Profesional no encontrado");
+        }
+        ReglaHorarioCita.validar(request.getFechaHora());
+        boolean solapada = !citaRepository.findByProfesionalIdAndEstadoAndFechaHoraBetween(
+                request.getProfesionalId(), "AGENDADA",
+                ReglaHorarioCita.inicioVentanaSolapamiento(request.getFechaHora()),
+                ReglaHorarioCita.finVentanaSolapamiento(request.getFechaHora())).isEmpty();
+        if (solapada) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "El profesional ya tiene una cita agendada en ese horario — elige otro horario");
         }
 
         Cita cita = new Cita();

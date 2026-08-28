@@ -23,10 +23,15 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CitasControllerTest {
+
+    // Fecha fija dentro del horario laboral (jueves 10:00) — usar LocalDateTime.now()
+    // haría los tests intermitentes según la hora real en que corran.
+    private static final LocalDateTime FECHA_VALIDA = LocalDateTime.of(2026, 9, 17, 10, 0);
 
     @Mock
     private CitaRepository citaRepository;
@@ -62,19 +67,23 @@ class CitasControllerTest {
         cita.setId(10L);
         cita.setPacienteId(1L);
         cita.setProfesionalId(5L);
-        cita.setFechaHora(LocalDateTime.now().minusDays(1));
+        cita.setFechaHora(LocalDateTime.of(2026, 9, 10, 10, 0));
         cita.setEstado("CANCELADA");
         return cita;
+    }
+
+    private ReagendarRequest request(LocalDateTime nuevaFechaHora) {
+        ReagendarRequest r = new ReagendarRequest();
+        r.setNuevaFechaHora(nuevaFechaHora);
+        return r;
     }
 
     @Test
     void reagendarConCitaInexistenteLanza404() {
         when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(1L);
         when(citaRepository.findById(10L)).thenReturn(Optional.empty());
-        ReagendarRequest request = new ReagendarRequest();
-        request.setNuevaFechaHora(LocalDateTime.now().plusDays(1));
 
-        assertThatThrownBy(() -> citasController.reagendar(10L, request, httpRequest))
+        assertThatThrownBy(() -> citasController.reagendar(10L, request(FECHA_VALIDA), httpRequest))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.NOT_FOUND));
@@ -85,10 +94,8 @@ class CitasControllerTest {
         when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(999L);
         Cita cita = citaCancelada();
         when(citaRepository.findById(10L)).thenReturn(Optional.of(cita));
-        ReagendarRequest request = new ReagendarRequest();
-        request.setNuevaFechaHora(LocalDateTime.now().plusDays(1));
 
-        assertThatThrownBy(() -> citasController.reagendar(10L, request, httpRequest))
+        assertThatThrownBy(() -> citasController.reagendar(10L, request(FECHA_VALIDA), httpRequest))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.FORBIDDEN));
@@ -100,13 +107,58 @@ class CitasControllerTest {
         Cita cita = citaCancelada();
         cita.setEstado("AGENDADA");
         when(citaRepository.findById(10L)).thenReturn(Optional.of(cita));
-        ReagendarRequest request = new ReagendarRequest();
-        request.setNuevaFechaHora(LocalDateTime.now().plusDays(1));
 
-        assertThatThrownBy(() -> citasController.reagendar(10L, request, httpRequest))
+        assertThatThrownBy(() -> citasController.reagendar(10L, request(FECHA_VALIDA), httpRequest))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    @Test
+    void reagendarAntesDeLas8amLanza400() {
+        when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(1L);
+        when(citaRepository.findById(10L)).thenReturn(Optional.of(citaCancelada()));
+
+        assertThatThrownBy(() -> citasController.reagendar(10L, request(LocalDateTime.of(2026, 9, 17, 7, 30)), httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void reagendarDespuesDeLas1730Lanza400() {
+        when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(1L);
+        when(citaRepository.findById(10L)).thenReturn(Optional.of(citaCancelada()));
+
+        assertThatThrownBy(() -> citasController.reagendar(10L, request(LocalDateTime.of(2026, 9, 17, 17, 31)), httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void reagendarEnHorarioDeColacionLanza400() {
+        when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(1L);
+        when(citaRepository.findById(10L)).thenReturn(Optional.of(citaCancelada()));
+
+        assertThatThrownBy(() -> citasController.reagendar(10L, request(LocalDateTime.of(2026, 9, 17, 13, 30)), httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void reagendarAlUltimoBloqueDeLasSeisEsValido() {
+        when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(1L);
+        Cita citaOriginal = citaCancelada();
+        when(citaRepository.findById(10L)).thenReturn(Optional.of(citaOriginal));
+        when(citaRepository.save(any(Cita.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LocalDateTime nuevaFecha = LocalDateTime.of(2026, 9, 17, 17, 30);
+
+        Cita resultado = citasController.reagendar(10L, request(nuevaFecha), httpRequest);
+
+        assertThat(resultado.getFechaHora()).isEqualTo(nuevaFecha);
     }
 
     @Test
@@ -114,14 +166,10 @@ class CitasControllerTest {
         when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(1L);
         Cita citaOriginal = citaCancelada();
         when(citaRepository.findById(10L)).thenReturn(Optional.of(citaOriginal));
+        when(citaRepository.existsByProfesionalIdAndEstadoAndFechaHoraBetween(eq(5L), eq("AGENDADA"), any(), any()))
+                .thenReturn(true);
 
-        LocalDateTime nuevaFecha = LocalDateTime.now().plusDays(3);
-        when(citaRepository.existsByProfesionalIdAndFechaHoraAndEstado(5L, nuevaFecha, "AGENDADA")).thenReturn(true);
-
-        ReagendarRequest request = new ReagendarRequest();
-        request.setNuevaFechaHora(nuevaFecha);
-
-        assertThatThrownBy(() -> citasController.reagendar(10L, request, httpRequest))
+        assertThatThrownBy(() -> citasController.reagendar(10L, request(FECHA_VALIDA), httpRequest))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.CONFLICT));
@@ -135,14 +183,10 @@ class CitasControllerTest {
         when(citaRepository.findById(10L)).thenReturn(Optional.of(citaOriginal));
         when(citaRepository.save(any(Cita.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        LocalDateTime nuevaFecha = LocalDateTime.now().plusDays(3);
-        ReagendarRequest request = new ReagendarRequest();
-        request.setNuevaFechaHora(nuevaFecha);
-
-        Cita resultado = citasController.reagendar(10L, request, httpRequest);
+        Cita resultado = citasController.reagendar(10L, request(FECHA_VALIDA), httpRequest);
 
         assertThat(resultado.getEstado()).isEqualTo("AGENDADA");
-        assertThat(resultado.getFechaHora()).isEqualTo(nuevaFecha);
+        assertThat(resultado.getFechaHora()).isEqualTo(FECHA_VALIDA);
         assertThat(resultado.getPacienteId()).isEqualTo(1L);
         assertThat(resultado.getProfesionalId()).isEqualTo(5L);
         assertThat(citaOriginal.getEstado()).isEqualTo("REAGENDADA");
