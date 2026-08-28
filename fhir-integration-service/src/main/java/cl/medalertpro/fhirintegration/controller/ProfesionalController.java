@@ -1,5 +1,6 @@
 package cl.medalertpro.fhirintegration.controller;
 
+import cl.medalertpro.fhirintegration.dto.CrearProfesionalRequest;
 import cl.medalertpro.fhirintegration.dto.ProfesionalConCitasResponse;
 import cl.medalertpro.fhirintegration.dto.SetCredencialesRequest;
 import cl.medalertpro.fhirintegration.entity.ProfesionalSalud;
@@ -20,10 +21,10 @@ import java.time.LocalTime;
 import java.util.List;
 
 /**
- * Endpoint de apoyo para el formulario admin de registro de cancelación:
- * lista los profesionales con su conteo de citas AGENDADA en una fecha,
- * para mostrar el selector y el aviso de "se notificará a N pacientes"
- * antes de confirmar (ver medalert_pro_mockup_v2.html, pantalla Agenda).
+ * Lista profesionales con su conteo de citas AGENDADA en una fecha (apoyo
+ * para el formulario admin de registro de cancelación — ver
+ * medalert_pro_mockup_v2.html, pantalla Agenda) y permite dar de alta
+ * nuevos profesionales. No hay sincronización real con un RAS todavía.
  */
 @RestController
 @RequestMapping("/profesionales")
@@ -64,6 +65,19 @@ public class ProfesionalController {
                                 p.getId(), "AGENDADA", desde, hasta).size(),
                         p.getEmail()))
                 .toList();
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ProfesionalSalud crear(@Valid @RequestBody CrearProfesionalRequest request, HttpServletRequest httpRequest) {
+        authGuard.validar(httpRequest);
+
+        ProfesionalSalud profesional = new ProfesionalSalud();
+        profesional.setNombre(request.getNombre());
+        profesional.setEspecialidad(request.getEspecialidad());
+        profesional.setEstablecimientoId(request.getEstablecimientoId());
+
+        return profesionalRepository.save(profesional);
     }
 
     /**
