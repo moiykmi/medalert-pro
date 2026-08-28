@@ -1,5 +1,6 @@
 package cl.medalertpro.portal.controller;
 
+import cl.medalertpro.portal.dto.ActualizarDatosRequest;
 import cl.medalertpro.portal.entity.Notificacion;
 import cl.medalertpro.portal.entity.Paciente;
 import cl.medalertpro.portal.repository.NotificacionRepository;
@@ -12,12 +13,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,6 +77,36 @@ class AdminPacienteControllerTest {
         when(pacienteRepository.existsById(999L)).thenReturn(false);
 
         assertThatThrownBy(() -> controller.historialNotificaciones(999L, httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void actualizarDatosSoloCambiaLosCamposEnviados() {
+        Paciente existente = new Paciente();
+        ReflectionTestUtils.setField(existente, "id", 7L);
+        existente.setTelefono("+56900000000");
+        existente.setEmail("viejo@test.cl");
+        existente.setCanalPreferido("SMS");
+        when(pacienteRepository.findById(7L)).thenReturn(Optional.of(existente));
+        when(pacienteRepository.save(any(Paciente.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ActualizarDatosRequest request = new ActualizarDatosRequest();
+        request.setEmail("nuevo@test.cl");
+
+        Paciente resultado = controller.actualizarDatos(7L, request, httpRequest);
+
+        assertThat(resultado.getEmail()).isEqualTo("nuevo@test.cl");
+        assertThat(resultado.getTelefono()).isEqualTo("+56900000000");
+        assertThat(resultado.getDatosActualizadosEn()).isNotNull();
+    }
+
+    @Test
+    void actualizarDatosConPacienteInexistenteLanza404() {
+        when(pacienteRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> controller.actualizarDatos(999L, new ActualizarDatosRequest(), httpRequest))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.NOT_FOUND));

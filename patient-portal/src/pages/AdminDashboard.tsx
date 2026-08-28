@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Bitacora, Configuracion, Notificacion, Paciente, Profesional, ReporteMensual } from '../api/client';
+import { AdminDashboardEvent, AdminDashboardKpis, api, ApiError, Bitacora, CitaAgenda, Configuracion, Notificacion, Paciente, Profesional, ReporteMensual } from '../api/client';
 import './AdminDashboard.css';
 
 const STORAGE_KEY = 'medalert_admin_token';
@@ -106,6 +106,7 @@ const TIPO_NOTIF_LABEL: Record<string, string> = {
   CANCELACION: 'Aviso de cancelación',
   RECORDATORIO_48H: 'Recordatorio 48h',
   RECORDATORIO_24H: 'Recordatorio 24h',
+  PRUEBA: 'Mensaje de prueba',
 };
 
 const ESTADO_ENVIO_CHIP: Record<string, string> = {
@@ -124,6 +125,30 @@ const ESTADO_ENVIO_LABEL: Record<string, string> = {
   PENDIENTE: 'Pendiente',
   FALLIDO: 'Fallido',
   SIN_RESPUESTA: 'Sin respuesta',
+};
+
+const ESTADO_CITA_DOT: Record<string, string> = {
+  AGENDADA: '#10B981',
+  ATENDIDA: '#10B981',
+  CANCELADA: '#EF4444',
+  NO_ASISTIO: '#EF4444',
+  REAGENDADA: '#7C3AED',
+};
+
+const ESTADO_CITA_CHIP: Record<string, string> = {
+  AGENDADA: 'ok',
+  ATENDIDA: 'ok',
+  CANCELADA: 'warn',
+  NO_ASISTIO: 'warn',
+  REAGENDADA: 'off',
+};
+
+const ESTADO_CITA_LABEL: Record<string, string> = {
+  AGENDADA: 'Agendada',
+  ATENDIDA: 'Atendida',
+  CANCELADA: 'Cancelada',
+  NO_ASISTIO: 'No asistió',
+  REAGENDADA: 'Reagendada',
 };
 
 function formatHora(iso: string): string {
@@ -155,6 +180,8 @@ export function AdminDashboard() {
   const [errorCancelacion, setErrorCancelacion] = useState<string | null>(null);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [cargandoProfesionales, setCargandoProfesionales] = useState(false);
+  const [agendaCitas, setAgendaCitas] = useState<CitaAgenda[]>([]);
+  const [cargandoAgenda, setCargandoAgenda] = useState(false);
 
   const [configurandoAccesoId, setConfigurandoAccesoId] = useState<number | null>(null);
   const [emailAcceso, setEmailAcceso] = useState('');
@@ -169,6 +196,15 @@ export function AdminDashboard() {
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState<Paciente | null>(null);
   const [notifsPaciente, setNotifsPaciente] = useState<Notificacion[]>([]);
   const [cargandoNotifsPaciente, setCargandoNotifsPaciente] = useState(false);
+  const [editandoPaciente, setEditandoPaciente] = useState(false);
+  const [editTelefono, setEditTelefono] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editCanalPreferido, setEditCanalPreferido] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
+  const [guardandoEdicionPaciente, setGuardandoEdicionPaciente] = useState(false);
+  const [errorEdicionPaciente, setErrorEdicionPaciente] = useState<string | null>(null);
+  const [enviandoPrueba, setEnviandoPrueba] = useState(false);
+  const [mensajePrueba, setMensajePrueba] = useState<string | null>(null);
+  const [errorPrueba, setErrorPrueba] = useState<string | null>(null);
 
   const [filtroProfesionalHistorial, setFiltroProfesionalHistorial] = useState('');
 
@@ -222,6 +258,18 @@ export function AdminDashboard() {
     }
   }
 
+  async function cargarAgenda(tokenActual: string, fecha: string) {
+    setCargandoAgenda(true);
+    try {
+      const resp = await api.agendaDelDia(tokenActual, fecha);
+      setAgendaCitas(resp);
+    } catch {
+      setAgendaCitas([]);
+    } finally {
+      setCargandoAgenda(false);
+    }
+  }
+
   function abrirFormularioAcceso(p: Profesional) {
     setConfigurandoAccesoId(p.id);
     setEmailAcceso(p.email ?? '');
@@ -261,6 +309,10 @@ export function AdminDashboard() {
 
   async function seleccionarPaciente(p: Paciente) {
     setPacienteSeleccionado(p);
+    setEditandoPaciente(false);
+    setErrorEdicionPaciente(null);
+    setMensajePrueba(null);
+    setErrorPrueba(null);
     setCargandoNotifsPaciente(true);
     try {
       const resp = await api.historialNotificacionesPaciente(adminToken, p.id);
@@ -269,6 +321,56 @@ export function AdminDashboard() {
       setNotifsPaciente([]);
     } finally {
       setCargandoNotifsPaciente(false);
+    }
+  }
+
+  function abrirEdicionPaciente() {
+    if (!pacienteSeleccionado) return;
+    setEditTelefono(pacienteSeleccionado.telefono ?? '');
+    setEditEmail(pacienteSeleccionado.email ?? '');
+    setEditCanalPreferido(pacienteSeleccionado.canalPreferido);
+    setErrorEdicionPaciente(null);
+    setEditandoPaciente(true);
+  }
+
+  async function guardarEdicionPaciente(e: FormEvent) {
+    e.preventDefault();
+    if (!pacienteSeleccionado) return;
+    setGuardandoEdicionPaciente(true);
+    setErrorEdicionPaciente(null);
+    try {
+      const actualizado = await api.actualizarDatosPacienteAdmin(adminToken, pacienteSeleccionado.id, {
+        telefono: editTelefono.trim() || undefined,
+        email: editEmail.trim() || undefined,
+        canalPreferido: editCanalPreferido,
+      });
+      setPacienteSeleccionado(actualizado);
+      setPacientes((prev) => prev.map((p) => (p.id === actualizado.id ? actualizado : p)));
+      setEditandoPaciente(false);
+    } catch (err) {
+      setErrorEdicionPaciente(err instanceof ApiError ? err.message : 'No pudimos guardar los cambios.');
+    } finally {
+      setGuardandoEdicionPaciente(false);
+    }
+  }
+
+  async function enviarPrueba() {
+    if (!pacienteSeleccionado) return;
+    setEnviandoPrueba(true);
+    setMensajePrueba(null);
+    setErrorPrueba(null);
+    try {
+      const notif = await api.enviarNotificacionPrueba(adminToken, pacienteSeleccionado.id);
+      setMensajePrueba(
+          notif.estadoEnvio === 'ENVIADO'
+              ? `Prueba enviada por ${notif.canal}.`
+              : `El envío por ${notif.canal} falló — revisa la configuración del canal.`,
+      );
+      setNotifsPaciente((prev) => [notif, ...prev]);
+    } catch (err) {
+      setErrorPrueba(err instanceof ApiError ? err.message : 'No pudimos enviar la prueba.');
+    } finally {
+      setEnviandoPrueba(false);
     }
   }
 
@@ -308,9 +410,8 @@ export function AdminDashboard() {
     }
   }
 
-  async function cambiarToggle(campo: keyof Omit<Configuracion, 'actualizadoEn'>) {
-    if (!configuracion) return;
-    const nuevaConfig = { ...configuracion, [campo]: !configuracion[campo] };
+  async function persistirConfiguracion(nuevaConfig: Configuracion) {
+    const previa = configuracion;
     setConfiguracion(nuevaConfig);
     setGuardandoConfiguracion(true);
     setMensajeConfiguracion(null);
@@ -321,11 +422,21 @@ export function AdminDashboard() {
       setConfiguracion(guardada);
       setMensajeConfiguracion('Cambios guardados.');
     } catch (err) {
-      setConfiguracion(configuracion); // revertir si falló
+      setConfiguracion(previa); // revertir si falló
       setErrorConfiguracion(err instanceof ApiError ? err.message : 'No pudimos guardar el cambio.');
     } finally {
       setGuardandoConfiguracion(false);
     }
+  }
+
+  function cambiarToggle(campo: keyof Omit<Configuracion, 'actualizadoEn' | 'escalacionMinutosEspera' | 'escalacionMaxIntentos'>) {
+    if (!configuracion) return;
+    persistirConfiguracion({ ...configuracion, [campo]: !configuracion[campo] });
+  }
+
+  function cambiarEscalamiento(campo: 'escalacionMinutosEspera' | 'escalacionMaxIntentos', valor: number) {
+    if (!configuracion) return;
+    persistirConfiguracion({ ...configuracion, [campo]: valor });
   }
 
   const rangoHorarioInvalido =
@@ -392,6 +503,12 @@ export function AdminDashboard() {
     cargarBitacora(adminToken, fechaBitacora);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, tab, fechaBitacora]);
+
+  useEffect(() => {
+    if (!adminToken || tab !== 'agenda' || !fechaCancelacion) return;
+    cargarAgenda(adminToken, fechaCancelacion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, tab, fechaCancelacion]);
 
   const profesionalSeleccionado = useMemo(
       () => profesionales.find((p) => String(p.id) === profesionalId) ?? null,
@@ -751,9 +868,56 @@ export function AdminDashboard() {
 
         {tab === 'agenda' && (
           <>
-            <div className="stitle"><i className="ti ti-calendar-event" style={{ color: '#059669' }} /> Registrar ausencia médica</div>
+            <div className="stitle"><i className="ti ti-calendar-event" style={{ color: '#059669' }} /> Agenda del día — {fechaCancelacion ? formatDate(`${fechaCancelacion}T00:00:00`).split(',')[0] : ''}</div>
             <div className="two">
               <div>
+                <div className="card" style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid #F1F5F9' }}>
+                    {(['AGENDADA', 'CANCELADA', 'REAGENDADA'] as const).map((estado) => (
+                        <div key={estado} style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: ESTADO_CITA_DOT[estado] }}>
+                            {agendaCitas.filter((c) => c.estado === estado).length}
+                          </div>
+                          <div style={{ fontSize: 10, color: '#64748B' }}>{ESTADO_CITA_LABEL[estado]}s</div>
+                        </div>
+                    ))}
+                  </div>
+
+                  {cargandoAgenda && <p className="ma-vacio">Cargando agenda…</p>}
+                  {!cargandoAgenda && agendaCitas.length === 0 && (
+                      <p className="ma-vacio">No hay citas registradas para este día.</p>
+                  )}
+                  {!cargandoAgenda && agendaCitas.map((c) => (
+                      <div
+                          key={c.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
+                            borderBottom: '1px solid #F1F5F9',
+                            background: c.estado === 'CANCELADA' || c.estado === 'NO_ASISTIO' ? '#FFF7F7' : undefined,
+                          }}
+                      >
+                        <div style={{ width: 48, fontSize: 12, fontWeight: 600, color: ESTADO_CITA_DOT[c.estado] ?? '#0F172A' }}>
+                          {formatHora(c.fechaHora)}
+                        </div>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: ESTADO_CITA_DOT[c.estado] ?? '#94A3B8', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {c.pacienteNombre}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748B' }}>
+                            {c.profesionalEspecialidad ? `${c.profesionalEspecialidad} · ` : ''}{c.profesionalNombre}
+                          </div>
+                        </div>
+                        <span className={`chip ${ESTADO_CITA_CHIP[c.estado] ?? 'off'}`} style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                          {ESTADO_CITA_LABEL[c.estado] ?? c.estado}
+                        </span>
+                      </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="stitle" style={{ fontSize: 13 }}>Registrar ausencia médica</div>
                 <div className="card">
                   <div style={{ marginBottom: 14 }}>
                     <label className="form-label">Fecha de la agenda cancelada</label>
@@ -857,10 +1021,8 @@ export function AdminDashboard() {
                 </div>
                 {mensajeCancelacion && <p className="ma-exito-text">{mensajeCancelacion}</p>}
                 {errorCancelacion && <p className="ma-error-text">{errorCancelacion}</p>}
-              </div>
 
-              <div>
-                <div className="stitle" style={{ fontSize: 13 }}>Profesionales del día</div>
+                <div className="stitle" style={{ fontSize: 13, marginTop: 20 }}>Profesionales del día</div>
                 {mensajeAcceso && <p className="ma-exito-text">{mensajeAcceso}</p>}
                 {profesionales.length === 0 && !cargandoProfesionales && (
                   <div className="card-sm"><p className="ma-vacio">Sin profesionales registrados.</p></div>
@@ -1036,6 +1198,49 @@ export function AdminDashboard() {
                           </tr>
                         </tbody>
                       </table>
+
+                      {editandoPaciente && (
+                        <form onSubmit={guardarEdicionPaciente} style={{ marginBottom: 12, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 9, padding: 10 }}>
+                          <label className="form-label">Teléfono</label>
+                          <input
+                              type="text"
+                              className="form-input"
+                              style={{ marginBottom: 8 }}
+                              value={editTelefono}
+                              onChange={(e) => setEditTelefono(e.target.value)}
+                              placeholder="+56912345678"
+                          />
+                          <label className="form-label">Email</label>
+                          <input
+                              type="email"
+                              className="form-input"
+                              style={{ marginBottom: 8 }}
+                              value={editEmail}
+                              onChange={(e) => setEditEmail(e.target.value)}
+                          />
+                          <label className="form-label">Canal preferido</label>
+                          <select
+                              className="form-select"
+                              style={{ marginBottom: 10, width: '100%' }}
+                              value={editCanalPreferido}
+                              onChange={(e) => setEditCanalPreferido(e.target.value as 'SMS' | 'WHATSAPP' | 'EMAIL')}
+                          >
+                            <option value="SMS">SMS</option>
+                            <option value="WHATSAPP">WhatsApp</option>
+                            <option value="EMAIL">Email</option>
+                          </select>
+                          {errorEdicionPaciente && <p className="ma-error-text" style={{ marginBottom: 8 }}>{errorEdicionPaciente}</p>}
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: 12 }} disabled={guardandoEdicionPaciente}>
+                              {guardandoEdicionPaciente ? 'Guardando…' : 'Guardar'}
+                            </button>
+                            <button type="button" className="btn-sec" style={{ fontSize: 12 }} onClick={() => setEditandoPaciente(false)}>
+                              Cancelar
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
                       <div className="divider" />
                       <div className="stitle" style={{ fontSize: 13, marginBottom: 8 }}>Historial de notificaciones</div>
 
@@ -1059,6 +1264,29 @@ export function AdminDashboard() {
                           </span>
                         </div>
                       ))}
+
+                      <div className="divider" style={{ margin: '10px 0' }} />
+                      {mensajePrueba && <p className="ma-exito-text" style={{ fontSize: 12 }}>{mensajePrueba}</p>}
+                      {errorPrueba && <p className="ma-error-text" style={{ fontSize: 12 }}>{errorPrueba}</p>}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                            type="button"
+                            className="btn-primary"
+                            style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
+                            onClick={abrirEdicionPaciente}
+                        >
+                          <i className="ti ti-edit" style={{ fontSize: 14 }} />Editar datos
+                        </button>
+                        <button
+                            type="button"
+                            className="btn-sec"
+                            style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
+                            onClick={enviarPrueba}
+                            disabled={enviandoPrueba}
+                        >
+                          <i className="ti ti-send" style={{ fontSize: 14 }} />{enviandoPrueba ? 'Enviando…' : 'Enviar prueba'}
+                        </button>
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -1368,6 +1596,39 @@ export function AdminDashboard() {
                           className={`switch ${configuracion.recordatorio24hHabilitado ? 'on' : ''}`}
                           onClick={() => !guardandoConfiguracion && cambiarToggle('recordatorio24hHabilitado')}
                       />
+                    </div>
+                  </div>
+
+                  <div className="stitle" style={{ fontSize: 13 }}>Escalamiento automático</div>
+                  <div className="card" style={{ marginBottom: 14 }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <label className="form-label">Tiempo de espera antes de escalar</label>
+                      <select
+                          className="form-select"
+                          value={configuracion.escalacionMinutosEspera}
+                          disabled={guardandoConfiguracion}
+                          onChange={(e) => cambiarEscalamiento('escalacionMinutosEspera', Number(e.target.value))}
+                      >
+                        <option value={1}>1 minuto (pruebas)</option>
+                        <option value={5}>5 minutos (pruebas)</option>
+                        <option value={30}>30 minutos</option>
+                        <option value={60}>60 minutos</option>
+                        <option value={90}>90 minutos</option>
+                        <option value={120}>120 minutos</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="form-label">Máximo de intentos por paciente</label>
+                      <select
+                          className="form-select"
+                          value={configuracion.escalacionMaxIntentos}
+                          disabled={guardandoConfiguracion}
+                          onChange={(e) => cambiarEscalamiento('escalacionMaxIntentos', Number(e.target.value))}
+                      >
+                        <option value={2}>2 intentos</option>
+                        <option value={3}>3 intentos</option>
+                        <option value={4}>4 intentos</option>
+                      </select>
                     </div>
                   </div>
 

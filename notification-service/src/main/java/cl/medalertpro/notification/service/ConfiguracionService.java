@@ -38,8 +38,18 @@ public class ConfiguracionService {
         config.setCanalEmailHabilitado(request.getCanalEmailHabilitado());
         config.setRecordatorio48hHabilitado(request.getRecordatorio48hHabilitado());
         config.setRecordatorio24hHabilitado(request.getRecordatorio24hHabilitado());
+        config.setEscalacionMinutosEspera(request.getEscalacionMinutosEspera());
+        config.setEscalacionMaxIntentos(request.getEscalacionMaxIntentos());
         config.setActualizadoEn(LocalDateTime.now());
         return repository.save(config);
+    }
+
+    public int escalacionMinutosEspera() {
+        return obtener().getEscalacionMinutosEspera();
+    }
+
+    public int escalacionMaxIntentos() {
+        return obtener().getEscalacionMaxIntentos();
     }
 
     public boolean isCanalHabilitado(String canal) {

@@ -34,6 +34,12 @@ public class ConfiguracionSistema {
     @Column(name = "recordatorio_24h_habilitado", nullable = false)
     private boolean recordatorio24hHabilitado = true;
 
+    @Column(name = "escalacion_minutos_espera", nullable = false)
+    private int escalacionMinutosEspera = 60;
+
+    @Column(name = "escalacion_max_intentos", nullable = false)
+    private int escalacionMaxIntentos = 3;
+
     @Column(name = "actualizado_en", nullable = false)
     private LocalDateTime actualizadoEn = LocalDateTime.now();
 }

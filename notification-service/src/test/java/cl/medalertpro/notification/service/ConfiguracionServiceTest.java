@@ -93,11 +93,26 @@ class ConfiguracionServiceTest {
         request.setCanalEmailHabilitado(true);
         request.setRecordatorio48hHabilitado(false);
         request.setRecordatorio24hHabilitado(true);
+        request.setEscalacionMinutosEspera(5);
+        request.setEscalacionMaxIntentos(2);
 
         ConfiguracionSistema actualizado = service.actualizar(request);
 
         assertThat(actualizado.isCanalWhatsappHabilitado()).isFalse();
         assertThat(actualizado.isRecordatorio48hHabilitado()).isFalse();
+        assertThat(actualizado.getEscalacionMinutosEspera()).isEqualTo(5);
+        assertThat(actualizado.getEscalacionMaxIntentos()).isEqualTo(2);
         assertThat(actualizado.getActualizadoEn()).isNotNull();
+    }
+
+    @Test
+    void escalacionMinutosEspera_devuelveElValorConfigurado() {
+        ConfiguracionSistema c = configConTodoHabilitado();
+        c.setEscalacionMinutosEspera(15);
+        c.setEscalacionMaxIntentos(4);
+        when(repository.findById(ConfiguracionSistema.ID_UNICO)).thenReturn(Optional.of(c));
+
+        assertThat(service.escalacionMinutosEspera()).isEqualTo(15);
+        assertThat(service.escalacionMaxIntentos()).isEqualTo(4);
     }
 }

@@ -128,6 +128,17 @@ export interface Profesional {
   email: string | null;
 }
 
+export interface CitaAgenda {
+  id: number;
+  fechaHora: string;
+  estado: 'AGENDADA' | 'CANCELADA' | 'REAGENDADA' | 'ATENDIDA' | 'NO_ASISTIO';
+  pacienteId: number;
+  pacienteNombre: string;
+  profesionalId: number;
+  profesionalNombre: string;
+  profesionalEspecialidad: string | null;
+}
+
 export interface ReporteMensual {
   periodo: string; // "2026-08"
   totalNotificaciones: number;
@@ -166,6 +177,8 @@ export interface Configuracion {
   canalEmailHabilitado: boolean;
   recordatorio48hHabilitado: boolean;
   recordatorio24hHabilitado: boolean;
+  escalacionMinutosEspera: number;
+  escalacionMaxIntentos: number;
   actualizadoEn: string;
 }
 
@@ -363,6 +376,9 @@ export const api = {
   registrarCancelacion: (adminToken: string, datos: RegistrarCancelacionRequest) =>
       requestAdminPost<EventoCancelacion>(FHIR_BASE_URL, '/eventos/cancelacion', adminToken, datos),
 
+  agendaDelDia: (adminToken: string, fecha: string) =>
+      requestAdmin<CitaAgenda[]>(FHIR_BASE_URL, `/agenda?fecha=${fecha}`, adminToken),
+
   listarProfesionales: (adminToken: string, fecha: string, horaInicio?: string, horaFin?: string) => {
     const params = new URLSearchParams({ fecha });
     if (horaInicio) params.set('horaInicio', horaInicio);
@@ -375,6 +391,12 @@ export const api = {
 
   historialNotificacionesPaciente: (adminToken: string, pacienteId: number) =>
       requestAdmin<Notificacion[]>(BASE_URL, `/admin/pacientes/${pacienteId}/notificaciones`, adminToken),
+
+  actualizarDatosPacienteAdmin: (adminToken: string, pacienteId: number, datos: ActualizarDatosRequest) =>
+      requestAdminPut<Paciente>(BASE_URL, `/admin/pacientes/${pacienteId}`, adminToken, datos),
+
+  enviarNotificacionPrueba: (adminToken: string, pacienteId: number) =>
+      requestAdminPost<Notificacion>(ADMIN_BASE_URL, `/admin/pacientes/${pacienteId}/notificacion-prueba`, adminToken, {}),
 
   reporteMensual: (adminToken: string, periodo: string) =>
       requestAdmin<ReporteMensual>(ADMIN_BASE_URL, `/admin/dashboard/reporte-mensual?periodo=${periodo}`, adminToken),

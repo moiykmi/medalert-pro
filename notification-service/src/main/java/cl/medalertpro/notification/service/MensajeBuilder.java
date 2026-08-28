@@ -26,4 +26,11 @@ public class MensajeBuilder {
                 "MedAlert Pro: %s, recordatorio de su cita el %s (en %dh). Ingrese al portal para confirmar o reagendar.",
                 nombrePaciente, fechaHoraCita.format(FORMATO_FECHA), horasAntes);
     }
+
+    /** Enviado manualmente desde el panel admin para verificar que un canal llega al paciente. */
+    public static String construirPrueba(String nombrePaciente) {
+        return String.format(
+                "MedAlert Pro: %s, este es un mensaje de prueba enviado desde el panel administrativo. Puede ignorarlo.",
+                nombrePaciente);
+    }
 }

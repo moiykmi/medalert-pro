@@ -12,7 +12,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,8 +53,9 @@ class EscalacionSchedulerTest {
     @BeforeEach
     void setUp() {
         scheduler = new EscalacionScheduler(notificacionRepository, pacienteRepository, eventoRepository, dispatchService, configuracionService);
-        ReflectionTestUtils.setField(scheduler, "minutosEspera", 60);
         lenient().when(configuracionService.isCanalHabilitado(anyString())).thenReturn(true);
+        lenient().when(configuracionService.escalacionMinutosEspera()).thenReturn(60);
+        lenient().when(configuracionService.escalacionMaxIntentos()).thenReturn(3);
     }
 
     private static Notificacion notificacion(Long id, Long eventoId, Long pacienteId, String canal, short intento, LocalDateTime enviadoEn) {

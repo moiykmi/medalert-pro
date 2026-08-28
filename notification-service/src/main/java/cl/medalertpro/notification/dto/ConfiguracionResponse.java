@@ -11,6 +11,8 @@ public class ConfiguracionResponse {
     private boolean canalEmailHabilitado;
     private boolean recordatorio48hHabilitado;
     private boolean recordatorio24hHabilitado;
+    private int escalacionMinutosEspera;
+    private int escalacionMaxIntentos;
     private LocalDateTime actualizadoEn;
 
     public static ConfiguracionResponse desde(ConfiguracionSistema c) {
@@ -20,6 +22,8 @@ public class ConfiguracionResponse {
         dto.canalEmailHabilitado = c.isCanalEmailHabilitado();
         dto.recordatorio48hHabilitado = c.isRecordatorio48hHabilitado();
         dto.recordatorio24hHabilitado = c.isRecordatorio24hHabilitado();
+        dto.escalacionMinutosEspera = c.getEscalacionMinutosEspera();
+        dto.escalacionMaxIntentos = c.getEscalacionMaxIntentos();
         dto.actualizadoEn = c.getActualizadoEn();
         return dto;
     }
@@ -29,5 +33,7 @@ public class ConfiguracionResponse {
     public boolean isCanalEmailHabilitado() { return canalEmailHabilitado; }
     public boolean isRecordatorio48hHabilitado() { return recordatorio48hHabilitado; }
     public boolean isRecordatorio24hHabilitado() { return recordatorio24hHabilitado; }
+    public int getEscalacionMinutosEspera() { return escalacionMinutosEspera; }
+    public int getEscalacionMaxIntentos() { return escalacionMaxIntentos; }
     public LocalDateTime getActualizadoEn() { return actualizadoEn; }
 }

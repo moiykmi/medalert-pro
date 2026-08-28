@@ -8,7 +8,6 @@ import cl.medalertpro.notification.repository.NotificacionRepository;
 import cl.medalertpro.notification.repository.PacienteRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -26,16 +25,12 @@ public class EscalacionScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(EscalacionScheduler.class);
     private static final List<String> ORDEN_CANALES = List.of("SMS", "WHATSAPP", "EMAIL");
-    private static final int MAX_INTENTOS = 3;
 
     private final NotificacionRepository notificacionRepository;
     private final PacienteRepository pacienteRepository;
     private final EventoCancelacionRepository eventoRepository;
     private final NotificacionDispatchService dispatchService;
     private final ConfiguracionService configuracionService;
-
-    @Value("${medalert.escalacion.minutos-espera}")
-    private int minutosEspera;
 
     public EscalacionScheduler(NotificacionRepository notificacionRepository,
                                PacienteRepository pacienteRepository,
@@ -49,12 +44,12 @@ public class EscalacionScheduler {
         this.configuracionService = configuracionService;
     }
 
-    // Revisa cada 1 minuto. La ventana real de espera (60 min en producción) se
-    // controla con medalert.escalacion.minutos-espera, ajustable en application.yml
-    // para poder probar el escalamiento en segundos durante desarrollo.
+    // Revisa cada 1 minuto. La ventana de espera y el máximo de intentos son
+    // configurables desde el admin (pantalla Configuración) — configuracionService
+    // los lee en cada ciclo, así un cambio se aplica sin reiniciar el servicio.
     @Scheduled(fixedRate = 60_000)
     public void revisarYEscalar() {
-        LocalDateTime limite = LocalDateTime.now().minusMinutes(minutosEspera);
+        LocalDateTime limite = LocalDateTime.now().minusMinutes(configuracionService.escalacionMinutosEspera());
         List<Notificacion> candidatas = notificacionRepository
                 .findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore("ENVIADO", "CANCELACION", limite);
 
@@ -74,9 +69,10 @@ public class EscalacionScheduler {
     }
 
     private void escalarSiCorresponde(Notificacion ultimaNotificacion) {
-        if (ultimaNotificacion.getIntentoNumero() >= MAX_INTENTOS) {
+        int maxIntentos = configuracionService.escalacionMaxIntentos();
+        if (ultimaNotificacion.getIntentoNumero() >= maxIntentos) {
             log.info("Paciente {} (evento {}) alcanzó el máximo de {} intentos sin confirmar — no se escala más",
-                    ultimaNotificacion.getPacienteId(), ultimaNotificacion.getEventoId(), MAX_INTENTOS);
+                    ultimaNotificacion.getPacienteId(), ultimaNotificacion.getEventoId(), maxIntentos);
             marcarSinRespuesta(ultimaNotificacion);
             return;
         }
@@ -111,7 +107,7 @@ public class EscalacionScheduler {
 
         log.info("Escalando paciente {} (evento {}) de {} a {} — intento {}/{}",
                 paciente.getId(), evento.getId(), ultimaNotificacion.getCanal(), siguienteCanal,
-                nuevoIntento, MAX_INTENTOS);
+                nuevoIntento, maxIntentos);
 
         dispatchService.enviarYRegistrar(
                 evento.getId(), paciente.getId(), ultimaNotificacion.getCitaId(),
