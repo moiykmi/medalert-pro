@@ -1,0 +1,87 @@
+package cl.medalertpro.fhirintegration.controller;
+
+import cl.medalertpro.fhirintegration.dto.CrearCitaRequest;
+import cl.medalertpro.fhirintegration.entity.Cita;
+import cl.medalertpro.fhirintegration.repository.CitaRepository;
+import cl.medalertpro.fhirintegration.repository.PacienteRepository;
+import cl.medalertpro.fhirintegration.repository.ProfesionalRepository;
+import cl.medalertpro.fhirintegration.service.AdminAuthGuard;
+import jakarta.servlet.http.HttpServletRequest;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class AdminCitaControllerTest {
+
+    @Mock
+    private CitaRepository citaRepository;
+    @Mock
+    private PacienteRepository pacienteRepository;
+    @Mock
+    private ProfesionalRepository profesionalRepository;
+    @Mock
+    private AdminAuthGuard authGuard;
+    @Mock
+    private HttpServletRequest httpRequest;
+
+    private AdminCitaController controller;
+
+    @BeforeEach
+    void setUp() {
+        controller = new AdminCitaController(citaRepository, pacienteRepository, profesionalRepository, authGuard);
+    }
+
+    private CrearCitaRequest request(Long pacienteId, Long profesionalId) {
+        CrearCitaRequest r = new CrearCitaRequest();
+        r.setPacienteId(pacienteId);
+        r.setProfesionalId(profesionalId);
+        r.setFechaHora(LocalDateTime.of(2026, 9, 1, 10, 0));
+        return r;
+    }
+
+    @Test
+    void creaLaCitaComoAgendada() {
+        when(pacienteRepository.existsById(1L)).thenReturn(true);
+        when(profesionalRepository.existsById(2L)).thenReturn(true);
+        when(citaRepository.save(any(Cita.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Cita resultado = controller.crear(request(1L, 2L), httpRequest);
+
+        assertThat(resultado.getPacienteId()).isEqualTo(1L);
+        assertThat(resultado.getProfesionalId()).isEqualTo(2L);
+        assertThat(resultado.getEstado()).isEqualTo("AGENDADA");
+    }
+
+    @Test
+    void conPacienteInexistenteLanza404() {
+        when(pacienteRepository.existsById(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> controller.crear(request(999L, 2L), httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void conProfesionalInexistenteLanza404() {
+        when(pacienteRepository.existsById(1L)).thenReturn(true);
+        when(profesionalRepository.existsById(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> controller.crear(request(1L, 999L), httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.NOT_FOUND));
+    }
+}
