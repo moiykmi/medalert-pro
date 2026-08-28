@@ -10,6 +10,7 @@ import cl.medalertpro.fhirintegration.service.AdminAuthGuard;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -68,6 +69,7 @@ public class AdminCitaController {
     /** Limpieza de citas de prueba mal cargadas — borrado físico, no un cambio de estado. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
     public void eliminar(@PathVariable Long id, HttpServletRequest httpRequest) {
         authGuard.validar(httpRequest);
 
