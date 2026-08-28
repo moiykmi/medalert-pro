@@ -668,11 +668,13 @@ export function AdminDashboard() {
   }, [adminToken, tab, fechaCancelacion]);
 
   useEffect(() => {
-    const fecha = citaAgendaFechaHora.split('T')[0];
+    const [fecha, hora] = citaAgendaFechaHora.split('T');
     if (!adminToken || !citaAgendaProfesionalId || !fecha) { setHorariosOcupadosCitaAgenda([]); return; }
     let cancelado = false;
     horariosOcupadosDe(adminToken, fecha, citaAgendaProfesionalId).then((horarios) => {
-      if (!cancelado) setHorariosOcupadosCitaAgenda(horarios);
+      if (cancelado) return;
+      setHorariosOcupadosCitaAgenda(horarios);
+      if (hora && horarios.includes(hora)) setCitaAgendaFechaHora(`${fecha}T`);
     });
     return () => { cancelado = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
