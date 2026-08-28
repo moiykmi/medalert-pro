@@ -230,6 +230,13 @@ export function AdminDashboard() {
   const [guardandoCita, setGuardandoCita] = useState(false);
   const [mensajeCita, setMensajeCita] = useState<string | null>(null);
   const [errorCita, setErrorCita] = useState<string | null>(null);
+  const [creandoCitaAgenda, setCreandoCitaAgenda] = useState(false);
+  const [citaAgendaPacienteId, setCitaAgendaPacienteId] = useState('');
+  const [citaAgendaProfesionalId, setCitaAgendaProfesionalId] = useState('');
+  const [citaAgendaFechaHora, setCitaAgendaFechaHora] = useState('');
+  const [guardandoCitaAgenda, setGuardandoCitaAgenda] = useState(false);
+  const [mensajeCitaAgenda, setMensajeCitaAgenda] = useState<string | null>(null);
+  const [errorCitaAgenda, setErrorCitaAgenda] = useState<string | null>(null);
 
   const [filtroProfesionalHistorial, setFiltroProfesionalHistorial] = useState('');
 
@@ -428,6 +435,36 @@ export function AdminDashboard() {
       setErrorCita(err instanceof ApiError ? err.message : 'No pudimos crear la cita.');
     } finally {
       setGuardandoCita(false);
+    }
+  }
+
+  function abrirCrearCitaAgenda() {
+    setCitaAgendaPacienteId('');
+    setCitaAgendaProfesionalId('');
+    setCitaAgendaFechaHora(fechaCancelacion ? `${fechaCancelacion}T09:00` : '');
+    setErrorCitaAgenda(null);
+    setMensajeCitaAgenda(null);
+    setCreandoCitaAgenda(true);
+  }
+
+  async function crearCitaDesdeAgenda(e: FormEvent) {
+    e.preventDefault();
+    if (!citaAgendaPacienteId || !citaAgendaProfesionalId || !citaAgendaFechaHora) return;
+    setGuardandoCitaAgenda(true);
+    setErrorCitaAgenda(null);
+    setMensajeCitaAgenda(null);
+    try {
+      await api.crearCita(adminToken, {
+        pacienteId: Number(citaAgendaPacienteId),
+        profesionalId: Number(citaAgendaProfesionalId),
+        fechaHora: citaAgendaFechaHora,
+      });
+      setMensajeCitaAgenda('Cita creada.');
+      cargarAgenda(adminToken, fechaCancelacion);
+    } catch (err) {
+      setErrorCitaAgenda(err instanceof ApiError ? err.message : 'No pudimos crear la cita.');
+    } finally {
+      setGuardandoCitaAgenda(false);
     }
   }
 
@@ -925,7 +962,69 @@ export function AdminDashboard() {
 
         {tab === 'agenda' && (
           <>
-            <div className="stitle"><i className="ti ti-calendar-event" style={{ color: '#059669' }} /> Agenda del día — {fechaCancelacion ? formatDate(`${fechaCancelacion}T00:00:00`).split(',')[0] : ''}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: creandoCitaAgenda ? 12 : 0 }}>
+              <div className="stitle" style={{ marginBottom: 0 }}>
+                <i className="ti ti-calendar-event" style={{ color: '#059669' }} /> Agenda del día — {fechaCancelacion ? formatDate(`${fechaCancelacion}T00:00:00`).split(',')[0] : ''}
+              </div>
+              <button type="button" className="btn-sec" style={{ fontSize: 12 }} onClick={() => (creandoCitaAgenda ? setCreandoCitaAgenda(false) : abrirCrearCitaAgenda())}>
+                <i className="ti ti-calendar-plus" style={{ fontSize: 14 }} />{creandoCitaAgenda ? 'Cancelar' : 'Crear cita'}
+              </button>
+            </div>
+
+            {creandoCitaAgenda && (
+              <form
+                  onSubmit={crearCitaDesdeAgenda}
+                  className="card"
+                  style={{ marginBottom: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, alignItems: 'end' }}
+              >
+                <div>
+                  <label className="form-label">Paciente</label>
+                  <select
+                      className="form-select"
+                      style={{ width: '100%' }}
+                      value={citaAgendaPacienteId}
+                      onChange={(e) => setCitaAgendaPacienteId(e.target.value)}
+                      required
+                  >
+                    <option value="" disabled>Seleccionar...</option>
+                    {pacientes.map((p) => (
+                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Profesional</label>
+                  <select
+                      className="form-select"
+                      style={{ width: '100%' }}
+                      value={citaAgendaProfesionalId}
+                      onChange={(e) => setCitaAgendaProfesionalId(e.target.value)}
+                      required
+                  >
+                    <option value="" disabled>Seleccionar...</option>
+                    {profesionales.map((p) => (
+                        <option key={p.id} value={p.id}>{p.nombre} — {p.especialidad}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Fecha y hora</label>
+                  <input
+                      type="datetime-local"
+                      className="form-input"
+                      value={citaAgendaFechaHora}
+                      onChange={(e) => setCitaAgendaFechaHora(e.target.value)}
+                      required
+                  />
+                </div>
+                <button type="submit" className="btn-primary" style={{ justifyContent: 'center', fontSize: 12 }} disabled={guardandoCitaAgenda}>
+                  {guardandoCitaAgenda ? 'Creando…' : 'Crear cita'}
+                </button>
+                {errorCitaAgenda && <p className="ma-error-text" style={{ gridColumn: '1 / -1', margin: 0 }}>{errorCitaAgenda}</p>}
+                {mensajeCitaAgenda && <p className="ma-exito-text" style={{ gridColumn: '1 / -1', margin: 0 }}>{mensajeCitaAgenda}</p>}
+              </form>
+            )}
+
             <div className="two">
               <div>
                 <div className="card" style={{ marginBottom: 14 }}>
