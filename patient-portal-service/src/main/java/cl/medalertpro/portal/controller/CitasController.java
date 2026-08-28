@@ -18,9 +18,11 @@ import java.util.List;
 /**
  * HU10: consulta de citas del paciente autenticado.
  * HU12: reagendamiento autónomo — dado que RAS no expone horarios disponibles
- * reales, el paciente propone una nueva fecha/hora y el sistema la registra
- * directamente (sin validar contra un calendario de disponibilidad real).
- * Esto queda documentado como limitación conocida del MPV, coherente con el
+ * reales, el paciente propone una nueva fecha/hora libremente (no elige de una
+ * lista de cupos). Sí se valida que ese horario puntual no choque con otra
+ * cita AGENDADA del mismo profesional — evita la doble reserva del mismo
+ * cupo, aunque no existe un calendario de disponibilidad real que sugiera
+ * horarios libres de antemano. Limitación conocida del MVP, coherente con el
  * resto del proyecto (RAS simulado, no integrado en producción).
  */
 @RestController
@@ -59,6 +61,11 @@ public class CitasController {
         if (!"CANCELADA".equals(citaOriginal.getEstado())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Solo se pueden reagendar citas en estado CANCELADA (estado actual: " + citaOriginal.getEstado() + ")");
+        }
+        if (citaRepository.existsByProfesionalIdAndFechaHoraAndEstado(
+                citaOriginal.getProfesionalId(), request.getNuevaFechaHora(), "AGENDADA")) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "El profesional ya tiene una cita agendada en ese horario — elige otro horario");
         }
 
         Cita citaNueva = new Cita();

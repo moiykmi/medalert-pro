@@ -380,6 +380,9 @@ export const api = {
   registrarCancelacion: (adminToken: string, datos: RegistrarCancelacionRequest) =>
       requestAdminPost<EventoCancelacion>(FHIR_BASE_URL, '/eventos/cancelacion', adminToken, datos),
 
+  crearCita: (adminToken: string, datos: { pacienteId: number; profesionalId: number; fechaHora: string }) =>
+      requestAdminPost<Cita>(FHIR_BASE_URL, '/admin/citas', adminToken, datos),
+
   agendaDelDia: (adminToken: string, fecha: string) =>
       requestAdmin<CitaAgenda[]>(FHIR_BASE_URL, `/agenda?fecha=${fecha}`, adminToken),
 

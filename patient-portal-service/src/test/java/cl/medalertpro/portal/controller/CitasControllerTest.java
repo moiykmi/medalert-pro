@@ -110,6 +110,25 @@ class CitasControllerTest {
     }
 
     @Test
+    void reagendarConHorarioYaOcupadoPorOtraCitaDelMismoProfesionalLanza409() {
+        when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(1L);
+        Cita citaOriginal = citaCancelada();
+        when(citaRepository.findById(10L)).thenReturn(Optional.of(citaOriginal));
+
+        LocalDateTime nuevaFecha = LocalDateTime.now().plusDays(3);
+        when(citaRepository.existsByProfesionalIdAndFechaHoraAndEstado(5L, nuevaFecha, "AGENDADA")).thenReturn(true);
+
+        ReagendarRequest request = new ReagendarRequest();
+        request.setNuevaFechaHora(nuevaFecha);
+
+        assertThatThrownBy(() -> citasController.reagendar(10L, request, httpRequest))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
+        verify(citaRepository, never()).save(any());
+    }
+
+    @Test
     void reagendarConCitaCanceladaCreaNuevaCitaYRegistraReagendamiento() {
         when(authGuard.pacienteAutenticado(httpRequest)).thenReturn(1L);
         Cita citaOriginal = citaCancelada();

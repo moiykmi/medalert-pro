@@ -68,6 +68,14 @@ function agruparPorEvento(notificaciones: Notificacion[]): AvisoAgrupado[] {
       .sort((a, b) => b.eventoId - a.eventoId);
 }
 
+// Formato que exige <input type="datetime-local"> para su atributo min: "YYYY-MM-DDTHH:mm" en hora local.
+function ahoraParaInputFecha(): string {
+  const ahora = new Date();
+  ahora.setSeconds(0, 0);
+  ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
+  return ahora.toISOString().slice(0, 16);
+}
+
 function formatearFecha(iso: string | null): string {
   if (!iso) return 'Sin fecha';
   const fecha = new Date(iso);
@@ -89,6 +97,15 @@ export function Portal({ sesion, onSalir }: PortalProps) {
   const [reagendandoId, setReagendandoId] = useState<number | null>(null);
   const [nuevaFecha, setNuevaFecha] = useState<Record<number, string>>({});
   const [enviandoReagendo, setEnviandoReagendo] = useState<number | null>(null);
+
+  // Citas pasadas ya resueltas (agendadas que ya ocurrieron, reagendadas, etc.)
+  // no aportan nada en el día a día del paciente — se ocultan. Las CANCELADA
+  // se mantienen siempre visibles aunque su fecha original ya haya pasado,
+  // porque siguen siendo accionables (el paciente puede reagendarlas a futuro).
+  const citasVisibles = useMemo(
+      () => citas.filter((c) => c.estado === 'CANCELADA' || new Date(c.fechaHora).getTime() >= Date.now()),
+      [citas],
+  );
 
   const [perfil, setPerfil] = useState<Paciente | null>(null);
   const [editandoPerfil, setEditandoPerfil] = useState(false);
@@ -326,14 +343,14 @@ export function Portal({ sesion, onSalir }: PortalProps) {
             Mis citas
           </h2>
 
-          {!cargando && citas.length === 0 && (
+          {!cargando && citasVisibles.length === 0 && (
               <Card className="portal__vacio-card">
                 <p>No tienes citas registradas.</p>
               </Card>
           )}
 
           <div className="portal__lista">
-            {citas.map((cita) => (
+            {citasVisibles.map((cita) => (
                 <Card key={cita.id} className="cita-card">
                   <div className="cita">
                     <div>
@@ -357,6 +374,7 @@ export function Portal({ sesion, onSalir }: PortalProps) {
                             type="datetime-local"
                             className="cita__reagendar-input"
                             value={nuevaFecha[cita.id] ?? ''}
+                            min={ahoraParaInputFecha()}
                             onChange={(e) =>
                                 setNuevaFecha((prev) => ({ ...prev, [cita.id]: e.target.value }))
                             }

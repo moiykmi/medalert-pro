@@ -224,6 +224,12 @@ export function AdminDashboard() {
   const [enviandoPrueba, setEnviandoPrueba] = useState(false);
   const [mensajePrueba, setMensajePrueba] = useState<string | null>(null);
   const [errorPrueba, setErrorPrueba] = useState<string | null>(null);
+  const [creandoCita, setCreandoCita] = useState(false);
+  const [citaProfesionalId, setCitaProfesionalId] = useState('');
+  const [citaFechaHora, setCitaFechaHora] = useState('');
+  const [guardandoCita, setGuardandoCita] = useState(false);
+  const [mensajeCita, setMensajeCita] = useState<string | null>(null);
+  const [errorCita, setErrorCita] = useState<string | null>(null);
 
   const [filtroProfesionalHistorial, setFiltroProfesionalHistorial] = useState('');
 
@@ -332,6 +338,9 @@ export function AdminDashboard() {
     setErrorEdicionPaciente(null);
     setMensajePrueba(null);
     setErrorPrueba(null);
+    setCreandoCita(false);
+    setErrorCita(null);
+    setMensajeCita(null);
     setCargandoNotifsPaciente(true);
     try {
       const resp = await api.historialNotificacionesPaciente(adminToken, p.id);
@@ -390,6 +399,35 @@ export function AdminDashboard() {
       setErrorPrueba(err instanceof ApiError ? err.message : 'No pudimos enviar la prueba.');
     } finally {
       setEnviandoPrueba(false);
+    }
+  }
+
+  function abrirCrearCita() {
+    setCitaProfesionalId('');
+    setCitaFechaHora('');
+    setErrorCita(null);
+    setMensajeCita(null);
+    setCreandoCita(true);
+  }
+
+  async function crearCitaPaciente(e: FormEvent) {
+    e.preventDefault();
+    if (!pacienteSeleccionado || !citaProfesionalId || !citaFechaHora) return;
+    setGuardandoCita(true);
+    setErrorCita(null);
+    setMensajeCita(null);
+    try {
+      await api.crearCita(adminToken, {
+        pacienteId: pacienteSeleccionado.id,
+        profesionalId: Number(citaProfesionalId),
+        fechaHora: citaFechaHora,
+      });
+      setMensajeCita('Cita creada.');
+      setCitaFechaHora('');
+    } catch (err) {
+      setErrorCita(err instanceof ApiError ? err.message : 'No pudimos crear la cita.');
+    } finally {
+      setGuardandoCita(false);
     }
   }
 
@@ -1310,7 +1348,55 @@ export function AdminDashboard() {
                         >
                           <i className="ti ti-send" style={{ fontSize: 14 }} />{enviandoPrueba ? 'Enviando…' : 'Enviar prueba'}
                         </button>
+                        <button
+                            type="button"
+                            className="btn-sec"
+                            style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
+                            onClick={abrirCrearCita}
+                        >
+                          <i className="ti ti-calendar-plus" style={{ fontSize: 14 }} />Crear cita
+                        </button>
                       </div>
+
+                      {creandoCita && (
+                        <form
+                            onSubmit={crearCitaPaciente}
+                            style={{ marginTop: 12, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 9, padding: 10 }}
+                        >
+                          <label className="form-label">Profesional</label>
+                          <select
+                              className="form-select"
+                              style={{ marginBottom: 8, width: '100%' }}
+                              value={citaProfesionalId}
+                              onChange={(e) => setCitaProfesionalId(e.target.value)}
+                              required
+                          >
+                            <option value="" disabled>Seleccionar profesional...</option>
+                            {profesionales.map((p) => (
+                                <option key={p.id} value={p.id}>{p.nombre} — {p.especialidad}</option>
+                            ))}
+                          </select>
+                          <label className="form-label">Fecha y hora</label>
+                          <input
+                              type="datetime-local"
+                              className="form-input"
+                              style={{ marginBottom: 10 }}
+                              value={citaFechaHora}
+                              onChange={(e) => setCitaFechaHora(e.target.value)}
+                              required
+                          />
+                          {errorCita && <p className="ma-error-text" style={{ marginBottom: 8 }}>{errorCita}</p>}
+                          {mensajeCita && <p className="ma-exito-text" style={{ marginBottom: 8 }}>{mensajeCita}</p>}
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: 12 }} disabled={guardandoCita}>
+                              {guardandoCita ? 'Creando…' : 'Crear cita'}
+                            </button>
+                            <button type="button" className="btn-sec" style={{ fontSize: 12 }} onClick={() => setCreandoCita(false)}>
+                              Cerrar
+                            </button>
+                          </div>
+                        </form>
+                      )}
                     </div>
                   </>
                 ) : (
