@@ -3,6 +3,7 @@ package cl.medalertpro.fhirintegration.controller;
 import cl.medalertpro.fhirintegration.dto.CrearCitaRequest;
 import cl.medalertpro.fhirintegration.entity.Cita;
 import cl.medalertpro.fhirintegration.repository.CitaRepository;
+import cl.medalertpro.fhirintegration.repository.NotificacionRepository;
 import cl.medalertpro.fhirintegration.repository.PacienteRepository;
 import cl.medalertpro.fhirintegration.repository.ProfesionalRepository;
 import cl.medalertpro.fhirintegration.repository.ReagendamientoRepository;
@@ -39,6 +40,8 @@ class AdminCitaControllerTest {
     @Mock
     private ReagendamientoRepository reagendamientoRepository;
     @Mock
+    private NotificacionRepository notificacionRepository;
+    @Mock
     private AdminAuthGuard authGuard;
     @Mock
     private HttpServletRequest httpRequest;
@@ -47,7 +50,7 @@ class AdminCitaControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new AdminCitaController(citaRepository, pacienteRepository, profesionalRepository, reagendamientoRepository, authGuard);
+        controller = new AdminCitaController(citaRepository, pacienteRepository, profesionalRepository, reagendamientoRepository, notificacionRepository, authGuard);
     }
 
     private CrearCitaRequest request(Long pacienteId, Long profesionalId) {
@@ -139,6 +142,7 @@ class AdminCitaControllerTest {
         controller.eliminar(27L, httpRequest);
 
         verify(reagendamientoRepository).deleteByCitaOriginalIdOrCitaNuevaId(27L, 27L);
+        verify(notificacionRepository).deleteByCitaId(27L);
         verify(citaRepository).deleteById(27L);
     }
 

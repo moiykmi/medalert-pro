@@ -3,6 +3,7 @@ package cl.medalertpro.fhirintegration.controller;
 import cl.medalertpro.fhirintegration.dto.CrearCitaRequest;
 import cl.medalertpro.fhirintegration.entity.Cita;
 import cl.medalertpro.fhirintegration.repository.CitaRepository;
+import cl.medalertpro.fhirintegration.repository.NotificacionRepository;
 import cl.medalertpro.fhirintegration.repository.PacienteRepository;
 import cl.medalertpro.fhirintegration.repository.ProfesionalRepository;
 import cl.medalertpro.fhirintegration.repository.ReagendamientoRepository;
@@ -37,15 +38,17 @@ public class AdminCitaController {
     private final PacienteRepository pacienteRepository;
     private final ProfesionalRepository profesionalRepository;
     private final ReagendamientoRepository reagendamientoRepository;
+    private final NotificacionRepository notificacionRepository;
     private final AdminAuthGuard authGuard;
 
     public AdminCitaController(CitaRepository citaRepository, PacienteRepository pacienteRepository,
                                 ProfesionalRepository profesionalRepository, ReagendamientoRepository reagendamientoRepository,
-                                AdminAuthGuard authGuard) {
+                                NotificacionRepository notificacionRepository, AdminAuthGuard authGuard) {
         this.citaRepository = citaRepository;
         this.pacienteRepository = pacienteRepository;
         this.profesionalRepository = profesionalRepository;
         this.reagendamientoRepository = reagendamientoRepository;
+        this.notificacionRepository = notificacionRepository;
         this.authGuard = authGuard;
     }
 
@@ -89,10 +92,11 @@ public class AdminCitaController {
         if (!citaRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Cita no encontrada");
         }
-        // reagendamiento referencia cita (cita_original_id/cita_nueva_id) sin
-        // ON DELETE CASCADE — hay que soltar esa referencia antes o la
-        // eliminación de la cita viola la llave foránea.
+        // reagendamiento y notificacion referencian cita sin ON DELETE CASCADE
+        // — hay que soltar ambas referencias antes o la eliminación de la
+        // cita viola la llave foránea.
         reagendamientoRepository.deleteByCitaOriginalIdOrCitaNuevaId(id, id);
+        notificacionRepository.deleteByCitaId(id);
         citaRepository.deleteById(id);
     }
 }
