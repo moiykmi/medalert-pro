@@ -127,6 +127,25 @@ const ESTADO_ENVIO_LABEL: Record<string, string> = {
   SIN_RESPUESTA: 'Sin respuesta',
 };
 
+// Estado real de entrega reportado por Twilio (webhook) — solo SMS/WhatsApp.
+const ESTADO_ENTREGA_LABEL: Record<string, string> = {
+  queued: 'En cola',
+  sent: 'Enviado al operador',
+  delivered: 'Entregado',
+  undelivered: 'No entregado',
+  failed: 'Falló la entrega',
+  read: 'Leído',
+};
+
+const ESTADO_ENTREGA_COLOR: Record<string, string> = {
+  queued: '#94A3B8',
+  sent: '#94A3B8',
+  delivered: '#059669',
+  undelivered: '#BE123C',
+  failed: '#BE123C',
+  read: '#059669',
+};
+
 const ESTADO_CITA_DOT: Record<string, string> = {
   AGENDADA: '#10B981',
   ATENDIDA: '#10B981',
@@ -1258,6 +1277,11 @@ export function AdminDashboard() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 12, fontWeight: 500, color: '#0F172A' }}>{TIPO_NOTIF_LABEL[n.tipo] ?? n.tipo}</div>
                             <div style={{ fontSize: 11, color: '#94A3B8' }}>{n.enviadoEn ? formatDate(n.enviadoEn) : 'Sin enviar'}</div>
+                            {n.estadoEntrega && (
+                                <div style={{ fontSize: 10, color: ESTADO_ENTREGA_COLOR[n.estadoEntrega] ?? '#94A3B8', marginTop: 2 }}>
+                                  Entrega real: {ESTADO_ENTREGA_LABEL[n.estadoEntrega] ?? n.estadoEntrega}
+                                </div>
+                            )}
                           </div>
                           <span className={`chip ${ESTADO_ENVIO_CHIP[n.estadoEnvio] ?? 'off'}`} style={{ fontSize: 10 }}>
                             {ESTADO_ENVIO_LABEL[n.estadoEnvio] ?? n.estadoEnvio}

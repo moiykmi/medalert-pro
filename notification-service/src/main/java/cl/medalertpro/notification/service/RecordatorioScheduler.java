@@ -35,15 +35,17 @@ public class RecordatorioScheduler {
     private final NotificacionRepository notificacionRepository;
     private final NotificacionDispatchService dispatchService;
     private final ConfiguracionService configuracionService;
+    private final MensajeBuilder mensajeBuilder;
 
     public RecordatorioScheduler(CitaRepository citaRepository, PacienteRepository pacienteRepository,
                                   NotificacionRepository notificacionRepository, NotificacionDispatchService dispatchService,
-                                  ConfiguracionService configuracionService) {
+                                  ConfiguracionService configuracionService, MensajeBuilder mensajeBuilder) {
         this.citaRepository = citaRepository;
         this.pacienteRepository = pacienteRepository;
         this.notificacionRepository = notificacionRepository;
         this.dispatchService = dispatchService;
         this.configuracionService = configuracionService;
+        this.mensajeBuilder = mensajeBuilder;
     }
 
     @Scheduled(cron = "${medalert.recordatorios.cron}")
@@ -82,7 +84,7 @@ public class RecordatorioScheduler {
                 continue;
             }
 
-            String texto = MensajeBuilder.construirRecordatorio(paciente.getNombre(), cita.getFechaHora(), horasAntes);
+            String texto = mensajeBuilder.construirRecordatorio(paciente.getNombre(), cita.getFechaHora(), horasAntes);
 
             dispatchService.enviarRecordatorioYRegistrar(
                     cita.getId(), paciente.getId(), tipo, canal.get(), paciente.getTelefono(), paciente.getEmail(), ASUNTO, texto);

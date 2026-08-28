@@ -5,6 +5,7 @@ import cl.medalertpro.notification.entity.Paciente;
 import cl.medalertpro.notification.repository.PacienteRepository;
 import cl.medalertpro.notification.service.AdminAuthGuard;
 import cl.medalertpro.notification.service.ConfiguracionService;
+import cl.medalertpro.notification.service.MensajeBuilder;
 import cl.medalertpro.notification.service.NotificacionDispatchService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +44,7 @@ class AdminNotificacionPruebaControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new AdminNotificacionPruebaController(pacienteRepository, configuracionService, dispatchService, authGuard);
+        controller = new AdminNotificacionPruebaController(pacienteRepository, configuracionService, dispatchService, authGuard, new MensajeBuilder());
     }
 
     private Paciente paciente() {

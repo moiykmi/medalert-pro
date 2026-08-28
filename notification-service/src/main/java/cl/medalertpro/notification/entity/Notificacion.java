@@ -42,6 +42,15 @@ public class Notificacion {
     @Column(name = "proveedor_message_id", length = 150)
     private String proveedorMessageId;
 
+    // Estado real de entrega reportado por Twilio vía webhook (queued | sent |
+    // delivered | undelivered | failed | read) — null hasta el primer callback.
+    // Distinto de estadoEnvio, que solo refleja si el envío síncrono tuvo éxito.
+    @Column(name = "estado_entrega", length = 30)
+    private String estadoEntrega;
+
+    @Column(name = "entregado_en")
+    private LocalDateTime entregadoEn;
+
     @Column(name = "enviado_en")
     private LocalDateTime enviadoEn;
 

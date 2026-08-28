@@ -30,13 +30,16 @@ public class AdminNotificacionPruebaController {
     private final ConfiguracionService configuracionService;
     private final NotificacionDispatchService dispatchService;
     private final AdminAuthGuard authGuard;
+    private final MensajeBuilder mensajeBuilder;
 
     public AdminNotificacionPruebaController(PacienteRepository pacienteRepository, ConfiguracionService configuracionService,
-                                              NotificacionDispatchService dispatchService, AdminAuthGuard authGuard) {
+                                              NotificacionDispatchService dispatchService, AdminAuthGuard authGuard,
+                                              MensajeBuilder mensajeBuilder) {
         this.pacienteRepository = pacienteRepository;
         this.configuracionService = configuracionService;
         this.dispatchService = dispatchService;
         this.authGuard = authGuard;
+        this.mensajeBuilder = mensajeBuilder;
     }
 
     @PostMapping("/{id}/notificacion-prueba")
@@ -50,7 +53,7 @@ public class AdminNotificacionPruebaController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
                         "No hay ningún canal de notificación habilitado — revisa Configuración"));
 
-        String texto = MensajeBuilder.construirPrueba(paciente.getNombre());
+        String texto = mensajeBuilder.construirPrueba(paciente.getNombre());
         return dispatchService.enviarRecordatorioYRegistrar(
                 null, paciente.getId(), "PRUEBA", canal, paciente.getTelefono(), paciente.getEmail(),
                 "Mensaje de prueba — MedAlert Pro", texto);

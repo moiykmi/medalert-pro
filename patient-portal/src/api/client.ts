@@ -42,6 +42,10 @@ export interface Notificacion {
   canal: 'SMS' | 'WHATSAPP' | 'EMAIL';
   intentoNumero: number;
   estadoEnvio: 'PENDIENTE' | 'ENVIADO' | 'FALLIDO' | 'LEIDO' | 'CONFIRMADO' | 'SIN_RESPUESTA';
+  // Estado real de entrega reportado por Twilio (SMS/WhatsApp) vía webhook — null si
+  // aún no llega ningún callback, o si el canal fue EMAIL (Mailtrap no lo reporta).
+  estadoEntrega: 'queued' | 'sent' | 'delivered' | 'undelivered' | 'failed' | 'read' | null;
+  entregadoEn: string | null;
   enviadoEn: string | null;
   confirmadoEn: string | null;
 }

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,10 +50,12 @@ class EscalacionSchedulerTest {
     private ConfiguracionService configuracionService;
 
     private EscalacionScheduler scheduler;
+    private final MensajeBuilder mensajeBuilder = new MensajeBuilder();
 
     @BeforeEach
     void setUp() {
-        scheduler = new EscalacionScheduler(notificacionRepository, pacienteRepository, eventoRepository, dispatchService, configuracionService);
+        ReflectionTestUtils.setField(mensajeBuilder, "portalUrl", "https://portal.test");
+        scheduler = new EscalacionScheduler(notificacionRepository, pacienteRepository, eventoRepository, dispatchService, configuracionService, mensajeBuilder);
         lenient().when(configuracionService.isCanalHabilitado(anyString())).thenReturn(true);
         lenient().when(configuracionService.escalacionMinutosEspera()).thenReturn(60);
         lenient().when(configuracionService.escalacionMaxIntentos()).thenReturn(3);

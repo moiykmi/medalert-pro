@@ -45,6 +45,17 @@ medalert:
     exchange: medalert.eventos
     routing-key: cancelacion.registrada
     queue: cancelaciones.eventos
+  portal:
+    # Link incluido en los mensajes de cancelación/recordatorio para que el
+    # paciente pueda confirmar o reagendar directamente, sin tener que
+    # conocer la URL de antemano.
+    url: ${PORTAL_URL:http://localhost:5183}
+  public-url:
+    # URL pública de ESTE servicio (no del portal) — se la pasamos a Twilio
+    # como statusCallback para que nos avise el estado real de entrega de
+    # cada SMS/WhatsApp. También se usa para validar la firma de esos
+    # callbacks, así que debe ser exactamente la URL real (con esquema).
+    self: ${NOTIFICATION_SERVICE_PUBLIC_URL:http://localhost:8082}
   mail:
     from: ${MAIL_FROM:notificaciones@medalertpro.test}
   mailtrap:

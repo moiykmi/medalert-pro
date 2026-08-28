@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface NotificacionRepository extends JpaRepository<Notificacion, Long> {
 
@@ -25,4 +26,8 @@ public interface NotificacionRepository extends JpaRepository<Notificacion, Long
     // Idempotencia de recordatorios: evita reenviar el mismo recordatorio (48h/24h)
     // dos veces para la misma cita si el scheduler corre más de una vez el mismo día.
     boolean existsByCitaIdAndTipo(Long citaId, String tipo);
+
+    // Correlaciona el webhook de estado de Twilio (trae el SID del mensaje) con
+    // la fila que originó ese envío.
+    Optional<Notificacion> findByProveedorMessageId(String proveedorMessageId);
 }

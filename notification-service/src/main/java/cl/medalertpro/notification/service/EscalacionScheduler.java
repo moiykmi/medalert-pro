@@ -31,17 +31,20 @@ public class EscalacionScheduler {
     private final EventoCancelacionRepository eventoRepository;
     private final NotificacionDispatchService dispatchService;
     private final ConfiguracionService configuracionService;
+    private final MensajeBuilder mensajeBuilder;
 
     public EscalacionScheduler(NotificacionRepository notificacionRepository,
                                PacienteRepository pacienteRepository,
                                EventoCancelacionRepository eventoRepository,
                                NotificacionDispatchService dispatchService,
-                               ConfiguracionService configuracionService) {
+                               ConfiguracionService configuracionService,
+                               MensajeBuilder mensajeBuilder) {
         this.notificacionRepository = notificacionRepository;
         this.pacienteRepository = pacienteRepository;
         this.eventoRepository = eventoRepository;
         this.dispatchService = dispatchService;
         this.configuracionService = configuracionService;
+        this.mensajeBuilder = mensajeBuilder;
     }
 
     // Revisa cada 1 minuto. La ventana de espera y el máximo de intentos son
@@ -118,7 +121,7 @@ public class EscalacionScheduler {
             return;
         }
 
-        String texto = MensajeBuilder.construir(paciente.getNombre(), evento.getMotivo());
+        String texto = mensajeBuilder.construir(paciente.getNombre(), evento.getMotivo());
         short nuevoIntento = (short) (historial.size() + 1);
 
         log.info("Escalando paciente {} (evento {}) de {} a {} — intento {}/{}",

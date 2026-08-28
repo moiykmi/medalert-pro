@@ -46,10 +46,12 @@ class RecordatorioSchedulerTest {
     private ConfiguracionService configuracionService;
 
     private RecordatorioScheduler scheduler;
+    private final MensajeBuilder mensajeBuilder = new MensajeBuilder();
 
     @BeforeEach
     void setUp() {
-        scheduler = new RecordatorioScheduler(citaRepository, pacienteRepository, notificacionRepository, dispatchService, configuracionService);
+        ReflectionTestUtils.setField(mensajeBuilder, "portalUrl", "https://portal.test");
+        scheduler = new RecordatorioScheduler(citaRepository, pacienteRepository, notificacionRepository, dispatchService, configuracionService, mensajeBuilder);
         lenient().when(configuracionService.isRecordatorio48hHabilitado()).thenReturn(true);
         lenient().when(configuracionService.isRecordatorio24hHabilitado()).thenReturn(true);
         lenient().when(configuracionService.resolverCanalEnvio(anyString()))

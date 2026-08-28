@@ -38,6 +38,14 @@ public class Notificacion {
     @Column(name = "estado_envio", nullable = false, length = 30)
     private String estadoEnvio;
 
+    // Estado real de entrega reportado por Twilio vía webhook (null si aún no
+    // llega ningún callback, o si el canal fue EMAIL). Ver notification-service.
+    @Column(name = "estado_entrega", length = 30)
+    private String estadoEntrega;
+
+    @Column(name = "entregado_en")
+    private LocalDateTime entregadoEn;
+
     @Column(name = "enviado_en")
     private LocalDateTime enviadoEn;
 

@@ -23,13 +23,16 @@ public class NotificacionListener {
     private final NotificacionDispatchService dispatchService;
     private final NotificacionRepository notificacionRepository;
     private final ConfiguracionService configuracionService;
+    private final MensajeBuilder mensajeBuilder;
 
     public NotificacionListener(NotificacionDispatchService dispatchService,
                                  NotificacionRepository notificacionRepository,
-                                 ConfiguracionService configuracionService) {
+                                 ConfiguracionService configuracionService,
+                                 MensajeBuilder mensajeBuilder) {
         this.dispatchService = dispatchService;
         this.notificacionRepository = notificacionRepository;
         this.configuracionService = configuracionService;
+        this.mensajeBuilder = mensajeBuilder;
     }
 
     @RabbitListener(queues = "${medalert.rabbitmq.queue}")
@@ -55,7 +58,7 @@ public class NotificacionListener {
                 continue;
             }
 
-            String texto = MensajeBuilder.construir(paciente.getNombre(), evento.getMotivo());
+            String texto = mensajeBuilder.construir(paciente.getNombre(), evento.getMotivo());
             dispatchService.enviarYRegistrar(
                     evento.getEventoId(), paciente.getPacienteId(), paciente.getCitaId(),
                     canalInicial.get(), paciente.getTelefono(), paciente.getEmail(), texto, (short) 1);
