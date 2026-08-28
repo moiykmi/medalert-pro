@@ -49,6 +49,14 @@ spring:
           auth: true
           starttls:
             enable: true
+          # Sin esto, JavaMail no tiene límite de espera propio y usa el timeout
+          # del socket del SO (varios minutos) si Mailtrap no responde — y como
+          # el envío corre dentro del mismo hilo que revisa TODAS las escalaciones
+          # (ver TaskSchedulerConfig), un solo email colgado bloquea el
+          # escalamiento del resto de los pacientes mientras dura.
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 medalert:
   cors:
