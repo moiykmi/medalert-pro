@@ -12,6 +12,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -68,7 +69,23 @@ public class EscalacionScheduler {
         }
     }
 
-    private void escalarSiCorresponde(Notificacion ultimaNotificacion) {
+    private void escalarSiCorresponde(Notificacion candidata) {
+        List<Notificacion> historial = notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(
+                candidata.getEventoId(), candidata.getPacienteId());
+
+        // Si dos intentos del mismo par (evento, paciente) vencen en ciclos
+        // distintos — posible cuando el tiempo de espera configurado es corto,
+        // cercano al intervalo de revisión de 1 minuto — la candidata de este
+        // ciclo puede ser un intento antiguo ya superado por uno más nuevo que
+        // todavía no vence. Si no es realmente el último intento, no hacemos
+        // nada: el intento nuevo se evaluará por sí solo cuando también venza.
+        Notificacion ultimaNotificacion = historial.stream()
+                .max(Comparator.comparing(Notificacion::getIntentoNumero))
+                .orElse(candidata);
+        if (!ultimaNotificacion.getId().equals(candidata.getId())) {
+            return;
+        }
+
         int maxIntentos = configuracionService.escalacionMaxIntentos();
         if (ultimaNotificacion.getIntentoNumero() >= maxIntentos) {
             log.info("Paciente {} (evento {}) alcanzó el máximo de {} intentos sin confirmar — no se escala más",
@@ -76,9 +93,6 @@ public class EscalacionScheduler {
             marcarSinRespuesta(ultimaNotificacion);
             return;
         }
-
-        List<Notificacion> historial = notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(
-                ultimaNotificacion.getEventoId(), ultimaNotificacion.getPacienteId());
 
         List<String> canalesYaUsados = historial.stream().map(Notificacion::getCanal).toList();
 
@@ -103,7 +117,7 @@ public class EscalacionScheduler {
         }
 
         String texto = MensajeBuilder.construir(paciente.getNombre(), evento.getMotivo());
-        short nuevoIntento = (short) (ultimaNotificacion.getIntentoNumero() + 1);
+        short nuevoIntento = (short) (historial.size() + 1);
 
         log.info("Escalando paciente {} (evento {}) de {} a {} — intento {}/{}",
                 paciente.getId(), evento.getId(), ultimaNotificacion.getCanal(), siguienteCanal,

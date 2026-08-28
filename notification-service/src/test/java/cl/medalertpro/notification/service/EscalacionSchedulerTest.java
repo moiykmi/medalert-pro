@@ -115,6 +115,8 @@ class EscalacionSchedulerTest {
         Notificacion agotada = notificacion(2L, 101L, 201L, "EMAIL", (short) 3, LocalDateTime.now().minusMinutes(90));
         when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
                 .thenReturn(List.of(agotada));
+        when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(101L, 201L))
+                .thenReturn(List.of(agotada));
 
         scheduler.revisarYEscalar();
 
@@ -126,19 +128,40 @@ class EscalacionSchedulerTest {
 
     @Test
     void noEscalaYMarcaSinRespuestaCuandoYaSeUsaronTodosLosCanales() {
-        Notificacion ultima = notificacion(3L, 102L, 202L, "WHATSAPP", (short) 2, LocalDateTime.now().minusMinutes(90));
         Notificacion sms = notificacion(4L, 102L, 202L, "SMS", (short) 1, LocalDateTime.now().minusMinutes(150));
-        Notificacion email = notificacion(5L, 102L, 202L, "EMAIL", (short) 2, LocalDateTime.now().minusMinutes(90));
+        Notificacion whatsapp = notificacion(3L, 102L, 202L, "WHATSAPP", (short) 2, LocalDateTime.now().minusMinutes(120));
+        Notificacion email = notificacion(5L, 102L, 202L, "EMAIL", (short) 3, LocalDateTime.now().minusMinutes(90));
 
         when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
-                .thenReturn(List.of(ultima));
+                .thenReturn(List.of(email));
         when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(102L, 202L))
-                .thenReturn(List.of(sms, ultima, email));
+                .thenReturn(List.of(sms, whatsapp, email));
 
         scheduler.revisarYEscalar();
 
         verifyNoInteractions(dispatchService);
-        verify(notificacionRepository).save(argThat(n -> "SIN_RESPUESTA".equals(n.getEstadoEnvio())));
+        verify(notificacionRepository).save(argThat(n -> "SIN_RESPUESTA".equals(n.getEstadoEnvio()) && n.getId().equals(5L)));
+    }
+
+    @Test
+    void noProcesaUnIntentoAntiguoYaSuperadoPorUnoMasNuevoAunNoVencido() {
+        // El tiempo de espera configurado es corto (cercano al intervalo de 1 min
+        // del scheduler): el intento 1 (SMS) vence y aparece como candidata en este
+        // ciclo, pero ya fue superado por el intento 2 (WHATSAPP), que existe en el
+        // historial aunque todavía no cumple su propio tiempo de espera. No debe
+        // reprocesarse ni marcarse SIN_RESPUESTA — se evaluará por sí solo después.
+        Notificacion smsAntiguo = notificacion(6L, 103L, 203L, "SMS", (short) 1, LocalDateTime.now().minusMinutes(5));
+        Notificacion whatsappReciente = notificacion(7L, 103L, 203L, "WHATSAPP", (short) 2, LocalDateTime.now().minusSeconds(10));
+
+        when(notificacionRepository.findByEstadoEnvioAndTipoAndConfirmadoEnIsNullAndEnviadoEnBefore(eq("ENVIADO"), eq("CANCELACION"), any(LocalDateTime.class)))
+                .thenReturn(List.of(smsAntiguo));
+        when(notificacionRepository.findByEventoIdAndPacienteIdOrderByIntentoNumeroAsc(103L, 203L))
+                .thenReturn(List.of(smsAntiguo, whatsappReciente));
+
+        scheduler.revisarYEscalar();
+
+        verifyNoInteractions(dispatchService);
+        verify(notificacionRepository, never()).save(any());
     }
 
     @Test
