@@ -167,7 +167,7 @@ export function MedicoPortal() {
           <span className="logo-sub">Portal del Profesional</span>
         </div>
         <button className="nb" style={{ marginLeft: 'auto' }} title="Cerrar sesión" onClick={salir}>
-          <i className="ti ti-logout" />
+          <i className="ti ti-logout" />Cerrar sesión
         </button>
         <div className="avatar">{iniciales(agenda?.nombre ?? sesion.nombre)}</div>
       </div>

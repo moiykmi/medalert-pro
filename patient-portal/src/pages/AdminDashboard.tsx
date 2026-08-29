@@ -905,7 +905,7 @@ export function AdminDashboard() {
               setRol(ROL_SUPERUSER);
             }}
         >
-          <i className="ti ti-logout" />
+          <i className="ti ti-logout" />Cerrar sesión
         </button>
         <div className="avatar">AD</div>
       </div>
